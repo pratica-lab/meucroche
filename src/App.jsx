@@ -3,7 +3,7 @@ import {
   Menu, X, Check, ChevronRight, Plus, Minus, RotateCcw, 
   Info, Hash, FileText, Loader2, Play, AlertCircle, Link as LinkIcon, 
   ExternalLink, Home, Star, Trash2, Award, BookOpen, Clock, Pause, Save, History,
-  Pencil, MessageSquare, Search, Globe, LogOut, Sun, Moon, Tag
+  Pencil, MessageSquare, Search, Globe, LogOut, Sun, Moon
 } from 'lucide-react';
 
 // === IMPORTAÇÕES DO FIREBASE ===
@@ -44,10 +44,10 @@ const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
 const generateId = () => Math.random().toString(36).substr(2, 9);
 
 const formatTime = (totalSeconds) => {
-  const h = Math.floor(totalSeconds / 3600);
-  const m = Math.floor((totalSeconds % 3600) / 60);
-  const s = totalSeconds % 60;
-  return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+  return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
 };
 
 const formatDate = (dateString) => {
@@ -113,8 +113,8 @@ export default function App() {
     const unsubscribe = onSnapshot(projectsRef, 
       (snapshot) => {
         const loadedProjects = [];
-        snapshot.forEach((doc) => {
-          loadedProjects.push({ id: doc.id, ...doc.data() });
+        snapshot.forEach((docSnap) => {
+          loadedProjects.push({ id: docSnap.id, ...docSnap.data() });
         });
         
         loadedProjects.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
@@ -297,7 +297,7 @@ export default function App() {
           isTemp: true,
           name: parsedData.projectName || 'Nova Receita',
           data: parsedData,
-          tags: [], // Inicializa array de tags
+          tags: [], 
           progress: {},
           notes: {},
           timeSpent: 0,
@@ -321,7 +321,7 @@ export default function App() {
   const handleUpdateProject = async (updatedProject) => {
     setActiveProject(updatedProject);
     if (!updatedProject.isTemp && user) {
-      setProjects(currentProjects => currentProjects.map(p => p.id === updatedProject.id ? updatedProject : p));
+      setProjects(currentProjects => currentProjects.map(proj => proj.id === updatedProject.id ? updatedProject : proj));
       
       try {
         const projectRef = doc(db, 'artifacts', appId, 'users', user.uid, 'projects', updatedProject.id);
@@ -340,7 +340,7 @@ export default function App() {
     };
     setActiveProject(savedProject);
     
-    setProjects(currentProjects => [savedProject, ...currentProjects.filter(p => p.id !== savedProject.id)]);
+    setProjects(currentProjects => [savedProject, ...currentProjects.filter(proj => proj.id !== savedProject.id)]);
     
     if (user) {
       try {
@@ -353,7 +353,7 @@ export default function App() {
   };
 
   const handleDeleteProject = async (id) => {
-    setProjects(currentProjects => currentProjects.filter(p => p.id !== id));
+    setProjects(currentProjects => currentProjects.filter(proj => proj.id !== id));
     if (activeProject?.id === id) {
       setActiveProject(null);
       setAppState('board');
@@ -464,9 +464,9 @@ function BoardScreen({ projects, user, onOpen, onNew, onDelete, isDarkMode, togg
     signOut(auth);
   };
 
-  const filteredProjects = projects.filter(p => {
-    const matchName = p.name.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchTags = p.tags?.some(tag => tag.toLowerCase().includes(searchTerm.toLowerCase()));
+  const filteredProjects = projects.filter(proj => {
+    const matchName = proj.name.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchTags = (proj.tags || []).some(tagItem => tagItem.toLowerCase().includes(searchTerm.toLowerCase()));
     return matchName || matchTags;
   });
 
@@ -524,13 +524,13 @@ function BoardScreen({ projects, user, onOpen, onNew, onDelete, isDarkMode, togg
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {filteredProjects.map(project => {
-              const totalSteps = project.data.sections.filter(s=>s.type==='pattern').reduce((acc, s) => acc + (s.steps?.length || 0), 0);
+              const totalSteps = (project.data.sections || []).filter(sec => sec.type === 'pattern').reduce((acc, sec) => acc + (sec.steps?.length || 0), 0);
               let completedSteps = 0;
-              project.data.sections.filter(s=>s.type==='pattern').forEach(s => {
-                completedSteps += (project.progress[s.id] || 0);
+              (project.data.sections || []).filter(sec => sec.type === 'pattern').forEach(sec => {
+                completedSteps += (project.progress[sec.id] || 0);
               });
               const progressPercent = totalSteps === 0 ? 0 : Math.min(100, Math.round((completedSteps / totalSteps) * 100));
-              const completionsCount = project.history?.length || 0;
+              const completionsCount = (project.history || []).length;
 
               return (
                 <div key={project.id} className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden hover:shadow-xl transition-all flex flex-col relative group">
@@ -544,7 +544,7 @@ function BoardScreen({ projects, user, onOpen, onNew, onDelete, isDarkMode, togg
 
                   <div className="p-6 flex-1 cursor-pointer" onClick={() => onOpen(project)}>
                     <div className="flex justify-between items-start mb-4">
-                      <span className="text-4xl">{project.data.sections[0]?.icon || '🧶'}</span>
+                      <span className="text-4xl">{(project.data.sections && project.data.sections[0]?.icon) ? project.data.sections[0].icon : '🧶'}</span>
                       {completionsCount > 0 && (
                         <span className="bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 text-xs font-bold px-3 py-1 rounded-full flex items-center gap-1">
                           <Award size={14} /> Feita {completionsCount}x
@@ -557,9 +557,9 @@ function BoardScreen({ projects, user, onOpen, onNew, onDelete, isDarkMode, togg
                     {/* Exibição das Tags */}
                     {project.tags && project.tags.length > 0 && (
                       <div className="flex flex-wrap gap-2 mb-3">
-                        {project.tags.slice(0, 3).map((tag, idx) => (
+                        {project.tags.slice(0, 3).map((tagItem, idx) => (
                           <span key={idx} className="bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 text-[10px] font-bold px-2 py-1 rounded-md uppercase flex items-center gap-1">
-                            <Tag size={10} /> {tag}
+                            <Hash size={10} /> {tagItem}
                           </span>
                         ))}
                         {project.tags.length > 3 && (
@@ -578,7 +578,7 @@ function BoardScreen({ projects, user, onOpen, onNew, onDelete, isDarkMode, togg
                       </div>
                     </div>
 
-                    {completionsCount > 0 && (
+                    {completionsCount > 0 && project.history && project.history[0] && (
                       <div className="mt-4 bg-slate-50 dark:bg-slate-800/50 p-3 rounded-xl flex items-center justify-between border border-slate-100 dark:border-slate-700">
                         <div className="flex flex-col">
                           <span className="text-xs text-slate-400 dark:text-slate-500 font-bold uppercase">Última avaliação</span>
@@ -749,8 +749,8 @@ function SearchResultsScreen({ results, onSelect, onCancel }) {
           <p className="text-slate-600 dark:text-slate-400 mb-6">Encontramos estas opções reais na internet. Escolha uma para transformarmos no formato interativo:</p>
           
           <div className="space-y-4">
-            {results.map((res, i) => (
-              <div key={i} className="border-2 border-slate-200 dark:border-slate-700 rounded-2xl p-5 hover:border-emerald-500 transition-colors bg-white dark:bg-slate-800 shadow-sm flex flex-col md:flex-row gap-4 justify-between items-start md:items-center">
+            {results.map((res, idx) => (
+              <div key={idx} className="border-2 border-slate-200 dark:border-slate-700 rounded-2xl p-5 hover:border-emerald-500 transition-colors bg-white dark:bg-slate-800 shadow-sm flex flex-col md:flex-row gap-4 justify-between items-start md:items-center">
                 <div className="flex-1">
                   <div className="flex items-center gap-2 mb-1">
                     <span className="bg-emerald-100 dark:bg-emerald-900/50 text-emerald-800 dark:text-emerald-300 text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wider">{res.source}</span>
@@ -817,7 +817,7 @@ function ErrorScreen({ message, onRetry, onCancel }) {
 // APLICAÇÃO DE TRABALHO (WORKSPACE)
 // ==========================================
 function Workspace({ project, onUpdateProject, onSaveNewProject, onDeleteProject, onClose }) {
-  const [activeSectionId, setActiveSectionId] = useState(project.data.sections[0]?.id);
+  const [activeSectionId, setActiveSectionId] = useState((project.data.sections && project.data.sections.length > 0) ? project.data.sections[0].id : null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [stitchCount, setStitchCount] = useState(0);
   
@@ -837,7 +837,7 @@ function Workspace({ project, onUpdateProject, onSaveNewProject, onDeleteProject
     let interval;
     if (timerRunning) {
       interval = setInterval(() => {
-        setLocalTimeSpent(prev => prev + 1);
+        setLocalTimeSpent(prevTime => prevTime + 1);
       }, 1000);
     }
     return () => clearInterval(interval);
@@ -850,9 +850,9 @@ function Workspace({ project, onUpdateProject, onSaveNewProject, onDeleteProject
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [timerRunning]);
 
-  const PATTERN_SECTIONS = project.data.sections;
-  const activeSection = PATTERN_SECTIONS.find(s => s.id === activeSectionId) || PATTERN_SECTIONS[0];
-  const currentStepIndex = project.progress[activeSectionId] || 0;
+  const PATTERN_SECTIONS = project.data.sections || [];
+  const activeSection = PATTERN_SECTIONS.find(sec => sec.id === activeSectionId) || PATTERN_SECTIONS[0];
+  const currentStepIndex = (project.progress && project.progress[activeSectionId]) ? project.progress[activeSectionId] : 0;
 
   const handleCompleteStep = () => {
     const newProgress = { ...project.progress, [activeSectionId]: currentStepIndex + 1 };
@@ -869,13 +869,13 @@ function Workspace({ project, onUpdateProject, onSaveNewProject, onDeleteProject
     onUpdateProject({ ...project, progress: {}, timeSpent: 0 });
     setLocalTimeSpent(0);
     setStitchCount(0);
-    setActiveSectionId(PATTERN_SECTIONS[0].id);
+    if(PATTERN_SECTIONS.length > 0) setActiveSectionId(PATTERN_SECTIONS[0].id);
     setShowResetConfirm(false);
     setTimerRunning(false);
   };
 
   const handleAddTag = () => {
-    if (tagInput.trim() && !project.tags?.includes(tagInput.trim())) {
+    if (tagInput.trim() && !(project.tags || []).includes(tagInput.trim().toLowerCase())) {
       const updatedTags = [...(project.tags || []), tagInput.trim().toLowerCase()];
       onUpdateProject({ ...project, tags: updatedTags });
       setTagInput('');
@@ -883,11 +883,11 @@ function Workspace({ project, onUpdateProject, onSaveNewProject, onDeleteProject
   };
 
   const handleRemoveTag = (tagToRemove) => {
-    const updatedTags = project.tags.filter(t => t !== tagToRemove);
+    const updatedTags = (project.tags || []).filter(tagItem => tagItem !== tagToRemove);
     onUpdateProject({ ...project, tags: updatedTags });
   };
 
-  const isSectionComplete = (section) => section.type === 'pattern' && (project.progress[section.id] || 0) >= section.steps.length;
+  const isSectionComplete = (section) => section && section.type === 'pattern' && ((project.progress && project.progress[section.id]) || 0) >= (section.steps?.length || 0);
 
   const getSafeIcon = (iconStr) => {
     if (!iconStr) return '🧶';
@@ -912,8 +912,10 @@ function Workspace({ project, onUpdateProject, onSaveNewProject, onDeleteProject
     setLocalTimeSpent(0);
     setTimerRunning(false);
     setShowCompleteModal(false);
-    setActiveSectionId(PATTERN_SECTIONS[0].id);
+    if(PATTERN_SECTIONS.length > 0) setActiveSectionId(PATTERN_SECTIONS[0].id);
   };
+
+  if(!activeSection) return null; // Prevenção de quebra caso o projeto seja inválido
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-900 font-sans text-slate-800 dark:text-slate-100 transition-colors">
@@ -1002,9 +1004,9 @@ function Workspace({ project, onUpdateProject, onSaveNewProject, onDeleteProject
           <div className="p-4 border-b border-slate-100 dark:border-slate-700">
              <div className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Tags da Receita</div>
              <div className="flex flex-wrap gap-2 mb-3">
-               {project.tags?.map((tag, idx) => (
+               {(project.tags || []).map((tagItem, idx) => (
                  <span key={idx} className="bg-emerald-100 dark:bg-emerald-900/50 text-emerald-800 dark:text-emerald-300 text-xs font-bold px-2 py-1 rounded flex items-center gap-1">
-                   {tag} <button onClick={() => handleRemoveTag(tag)} className="hover:text-red-500 ml-1"><X size={12}/></button>
+                   {tagItem} <button onClick={() => handleRemoveTag(tagItem)} className="hover:text-red-500 ml-1"><X size={12}/></button>
                  </span>
                ))}
              </div>
@@ -1042,7 +1044,7 @@ function Workspace({ project, onUpdateProject, onSaveNewProject, onDeleteProject
           </div>
 
           <div className="p-4 border-t border-slate-100 dark:border-slate-700 flex flex-col gap-2">
-             {project.history?.length > 0 && (
+             {(project.history && project.history.length > 0) && (
                <button onClick={() => {setSidebarOpen(false); setShowHistoryModal(true);}} className="w-full flex items-center justify-between p-3 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 rounded-xl transition-colors border border-slate-200 dark:border-slate-600">
                  <span className="flex items-center gap-2 font-bold"><History size={16} className="text-emerald-600 dark:text-emerald-400"/> Histórico</span>
                  <span className="bg-slate-200 dark:bg-slate-700 text-xs px-2 py-0.5 rounded-full font-bold">{project.history.length}</span>
@@ -1090,7 +1092,7 @@ function Workspace({ project, onUpdateProject, onSaveNewProject, onDeleteProject
                   </div>
                 )}
 
-                {activeSection.steps?.map((step, idx) => (
+                {(activeSection.steps || []).map((step, idx) => (
                   <div key={idx} className="bg-slate-50 dark:bg-slate-900 p-4 rounded-xl border border-slate-100 dark:border-slate-700">
                     <p className="text-slate-700 dark:text-slate-300 whitespace-pre-line leading-relaxed">{step.text}</p>
                   </div>
@@ -1110,11 +1112,11 @@ function Workspace({ project, onUpdateProject, onSaveNewProject, onDeleteProject
                     <Check size={48} className="mx-auto text-emerald-500 mb-4" />
                     <h3 className="text-2xl font-bold text-emerald-900 dark:text-emerald-100 mb-6">Parte Concluída!</h3>
                     <div className="flex gap-3 justify-center flex-wrap">
-                      <button onClick={() => handleUndoStep(activeSection.steps.length - 1)} className="px-6 py-3 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 rounded-xl font-bold shadow-sm border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 transition">
+                      <button onClick={() => handleUndoStep((activeSection.steps?.length || 1) - 1)} className="px-6 py-3 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 rounded-xl font-bold shadow-sm border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 transition">
                         Desfazer última
                       </button>
-                      {PATTERN_SECTIONS.findIndex(s => s.id === activeSectionId) < PATTERN_SECTIONS.length - 1 && (
-                        <button onClick={() => setActiveSectionId(PATTERN_SECTIONS[PATTERN_SECTIONS.findIndex(s => s.id === activeSectionId) + 1].id)} className="px-6 py-3 bg-emerald-600 text-white rounded-xl font-bold shadow-md hover:bg-emerald-700 transition">
+                      {PATTERN_SECTIONS.findIndex(sec => sec.id === activeSectionId) < PATTERN_SECTIONS.length - 1 && (
+                        <button onClick={() => setActiveSectionId(PATTERN_SECTIONS[PATTERN_SECTIONS.findIndex(sec => sec.id === activeSectionId) + 1].id)} className="px-6 py-3 bg-emerald-600 text-white rounded-xl font-bold shadow-md hover:bg-emerald-700 transition">
                           Próxima Parte
                         </button>
                       )}
@@ -1122,7 +1124,7 @@ function Workspace({ project, onUpdateProject, onSaveNewProject, onDeleteProject
                   </div>
                 ) : (
                   <div className="flex flex-col gap-4">
-                    {activeSection.steps?.map((step, idx) => {
+                    {(activeSection.steps || []).map((step, idx) => {
                       if (idx < currentStepIndex) {
                         return (
                           <div key={idx} className="bg-slate-100 dark:bg-slate-800/50 p-4 rounded-xl flex items-center opacity-70 group hover:opacity-100 transition border border-transparent dark:border-slate-700">
@@ -1170,7 +1172,7 @@ function Workspace({ project, onUpdateProject, onSaveNewProject, onDeleteProject
                 <MessageSquare size={18} /> Minhas Observações ({activeSection.title})
               </h3>
               <textarea
-                value={project.notes?.[activeSectionId] || ''}
+                value={(project.notes && project.notes[activeSectionId]) ? project.notes[activeSectionId] : ''}
                 onChange={(e) => {
                   const newNotes = { ...(project.notes || {}), [activeSectionId]: e.target.value };
                   onUpdateProject({ ...project, notes: newNotes });
@@ -1184,14 +1186,14 @@ function Workspace({ project, onUpdateProject, onSaveNewProject, onDeleteProject
         </main>
       </div>
 
-      {activeSection.type === 'pattern' && !isSectionComplete(activeSection) && activeSection.steps[currentStepIndex]?.type !== 'info' && (
+      {activeSection.type === 'pattern' && !isSectionComplete(activeSection) && activeSection.steps && activeSection.steps[currentStepIndex]?.type !== 'info' && (
         <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-white dark:bg-slate-800 rounded-full shadow-[0_10px_40px_rgba(0,0,0,0.15)] border border-slate-200 dark:border-slate-700 flex items-center p-2 z-30">
-          <button onClick={() => setStitchCount(s => Math.max(0, s-1))} className="w-12 h-12 flex items-center justify-center text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full transition"><Minus size={24} /></button>
+          <button onClick={() => setStitchCount(prevCount => Math.max(0, prevCount - 1))} className="w-12 h-12 flex items-center justify-center text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full transition"><Minus size={24} /></button>
           <div className="w-20 text-center flex flex-col items-center justify-center">
             <span className="text-xs font-bold text-slate-400 uppercase mb-[-4px]">Pontos</span>
             <span className="font-black text-3xl text-emerald-600 dark:text-emerald-400">{stitchCount}</span>
           </div>
-          <button onClick={() => setStitchCount(s => s+1)} className="w-12 h-12 flex items-center justify-center text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/30 hover:bg-emerald-100 dark:hover:bg-emerald-800/50 rounded-full transition"><Plus size={24} /></button>
+          <button onClick={() => setStitchCount(prevCount => prevCount + 1)} className="w-12 h-12 flex items-center justify-center text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/30 hover:bg-emerald-100 dark:hover:bg-emerald-800/50 rounded-full transition"><Plus size={24} /></button>
         </div>
       )}
 
@@ -1214,8 +1216,8 @@ function Workspace({ project, onUpdateProject, onSaveNewProject, onDeleteProject
             <div className="flex gap-3">
               <button onClick={() => setShowSaveModal(false)} className="flex-1 py-3 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-200 font-bold rounded-xl hover:bg-slate-200 dark:hover:bg-slate-600 transition">Cancelar</button>
               <button onClick={() => {
-                const name = document.getElementById('projectNameInput').value;
-                onSaveNewProject(name || 'Receita sem nome');
+                const docName = document.getElementById('projectNameInput').value;
+                onSaveNewProject(docName || 'Receita sem nome');
                 setShowSaveModal(false);
               }} className="flex-1 py-3 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700 transition">Salvar</button>
             </div>
@@ -1303,8 +1305,8 @@ function Workspace({ project, onUpdateProject, onSaveNewProject, onDeleteProject
             </div>
             
             <div className="overflow-y-auto pr-2 flex-1 space-y-3">
-              {project.history.map((entry, i) => (
-                <div key={i} className="bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 p-4 rounded-xl flex flex-col gap-3">
+              {(project.history || []).map((entry, idx) => (
+                <div key={idx} className="bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 p-4 rounded-xl flex flex-col gap-3">
                   <div className="flex justify-between items-center border-b border-slate-200 dark:border-slate-700 pb-2">
                     <span className="font-bold text-slate-700 dark:text-slate-300">Feita em: {formatDate(entry.date)}</span>
                     <span className="bg-emerald-100 dark:bg-emerald-900/30 text-emerald-800 dark:text-emerald-400 text-xs font-bold px-2 py-1 rounded flex items-center gap-1"><Clock size={12}/> {formatTime(entry.timeSpent)}</span>
@@ -1368,13 +1370,13 @@ function CompletionModal({ timeSpent, isTemp, onClose, onPromptSave, onSave }) {
         <div className="mb-6">
           <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-3 text-center">Nível de Dificuldade</label>
           <div className="flex gap-2 bg-slate-100 dark:bg-slate-700 p-1 rounded-xl">
-            {['Fácil', 'Médio', 'Difícil'].map(lvl => (
+            {['Fácil', 'Médio', 'Difícil'].map(level => (
               <button 
-                key={lvl}
-                onClick={() => setDifficulty(lvl)}
-                className={`flex-1 py-2 rounded-lg font-bold text-sm transition shadow-sm ${difficulty === lvl ? 'bg-white dark:bg-slate-800 text-emerald-600 dark:text-emerald-400' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'}`}
+                key={level}
+                onClick={() => setDifficulty(level)}
+                className={`flex-1 py-2 rounded-lg font-bold text-sm transition shadow-sm ${difficulty === level ? 'bg-white dark:bg-slate-800 text-emerald-600 dark:text-emerald-400' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'}`}
               >
-                {lvl}
+                {level}
               </button>
             ))}
           </div>
@@ -1408,4 +1410,4 @@ function CompletionModal({ timeSpent, isTemp, onClose, onPromptSave, onSave }) {
       </div>
     </div>
   );
-}s
+}
