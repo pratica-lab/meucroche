@@ -126,7 +126,7 @@ export default function App() {
     setAppState('searching');
     setErrorMessage('');
 
-    const systemPrompt = `Você é um assistente de crochê e amigurumi. Use o Google Search para procurar opções de receitas REAIS e passo-a-passo gratuitas disponíveis na internet para o termo buscado. Priorize blogs, sites de artesãs ou catálogos (ex: Círculo, Amigurumi.com, etc) que possuam a receita escrita na página.
+    const systemPrompt = `Você é um assistente de crochê e amigurumi. Use o Google Search para procurar opções de receitas REAIS e passo-a-passo gratuitas disponíveis na internet para o termo buscado. Priorize blogs, sites de artesãos ou catálogos (ex: Círculo, Amigurumi.com, etc) que possuam a receita escrita na página.
     NUNCA INVENTE LINKS OU RECEITAS. Busque resultados reais.
     Retorne exatamente 3 opções. Se não achar 3, retorne as que achar.`;
 
@@ -153,11 +153,13 @@ export default function App() {
     const payload = {
       contents: [{ parts: [{ text: `BUSCAR RECEITA DE: ${query}` }] }],
       systemInstruction: { parts: [{ text: systemPrompt }] },
-      tools: [{ "google_search": {} }],
+      // CORREÇÃO 1: Nomenclatura da tool de pesquisa (googleSearch em vez de google_search)
+      tools: [{ googleSearch: {} }],
       generationConfig: { responseMimeType: "application/json", responseSchema: schema }
     };
 
-    const urlEndpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
+    // CORREÇÃO 2: Utilização de um modelo estável
+    const urlEndpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
 
     for (let i = 0; i < 3; i++) {
       try {
@@ -167,7 +169,10 @@ export default function App() {
         const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
         if (!text) throw new Error('Empty');
         
-        const parsedData = JSON.parse(text);
+        // CORREÇÃO 3: Limpeza de formatação markdown antes do parse do JSON
+        const cleanText = text.replace(/```json/gi, '').replace(/```/g, '').trim();
+        const parsedData = JSON.parse(cleanText);
+        
         if (parsedData.options && parsedData.options.length > 0) {
           setSearchResults(parsedData.options);
           setAppState('searchResults');
@@ -242,10 +247,12 @@ export default function App() {
     };
 
     if (isUrl) {
-      payload.tools = [{ "google_search": {} }];
+      // CORREÇÃO 1: Nomenclatura da tool de pesquisa (googleSearch em vez de google_search)
+      payload.tools = [{ googleSearch: {} }];
     }
 
-    const urlEndpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
+    // CORREÇÃO 2: Utilização de um modelo estável
+    const urlEndpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
 
     for (let i = 0; i < 4; i++) {
       try {
@@ -255,7 +262,9 @@ export default function App() {
         const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
         if (!text) throw new Error('Empty');
         
-        const parsedData = JSON.parse(text);
+        // CORREÇÃO 3: Limpeza de formatação markdown antes do parse do JSON
+        const cleanText = text.replace(/```json/gi, '').replace(/```/g, '').trim();
+        const parsedData = JSON.parse(cleanText);
         
         const tempProject = {
           id: generateId(),
