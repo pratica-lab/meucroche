@@ -150,8 +150,11 @@ export default function App() {
       systemInstruction: { parts: [{ text: systemPrompt }] }
     };
 
-    const fallbackModels = ['gemini-1.5-flash', 'gemini-1.5-pro'];
-
+    const fallbackModels = [
+      'gemini-2.5-flash', 
+     'gemini-flash-latest', 
+     'gemini-2.5-pro'
+    ];
     for (const model of fallbackModels) {
       const urlEndpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
       
@@ -237,8 +240,11 @@ export default function App() {
       systemInstruction: { parts: [{ text: systemPrompt }] }
     };
 
-    const fallbackModels = ['gemini-1.5-flash', 'gemini-1.5-pro'];
-
+    const fallbackModels = [
+      'gemini-2.5-flash', 
+      'gemini-flash-latest', 
+     'gemini-2.5-pro'
+    ];
     for (const model of fallbackModels) {
       const urlEndpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
       
