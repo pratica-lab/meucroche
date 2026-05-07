@@ -148,8 +148,8 @@ export default function App() {
       tools: [{ googleSearch: {} }]
     };
 
-    // CORREÇÃO: Usando a tag -latest para garantir que a API encontre o modelo
-    const urlEndpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${apiKey}`;
+    // CORREÇÃO: Usando a versão exata e estática do modelo
+    const urlEndpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-002:generateContent?key=${apiKey}`;
 
     for (let i = 0; i < 3; i++) {
       try {
@@ -236,8 +236,8 @@ export default function App() {
       payload.tools = [{ googleSearch: {} }];
     }
 
-    // CORREÇÃO: Usando a tag -latest
-    const urlEndpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${apiKey}`;
+    // CORREÇÃO: Usando a versão exata e estática do modelo
+    const urlEndpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-002:generateContent?key=${apiKey}`;
 
     for (let i = 0; i < 4; i++) {
       try {
