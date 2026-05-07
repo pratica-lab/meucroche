@@ -121,7 +121,7 @@ export default function App() {
     }
   };
 
- // Função para buscar receitas na web
+  // Função para buscar receitas na web
   const searchWebRecipes = async (query) => {
     setAppState('searching');
     setErrorMessage('');
@@ -146,10 +146,10 @@ export default function App() {
       contents: [{ parts: [{ text: `BUSCAR RECEITA DE: ${query}` }] }],
       systemInstruction: { parts: [{ text: systemPrompt }] },
       tools: [{ googleSearch: {} }]
-      // Removemos o generationConfig para evitar conflito com o googleSearch
     };
 
-    const urlEndpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+    // CORREÇÃO: Usando a tag -latest para garantir que a API encontre o modelo
+    const urlEndpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${apiKey}`;
 
     for (let i = 0; i < 3; i++) {
       try {
@@ -165,7 +165,7 @@ export default function App() {
         const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
         if (!text) throw new Error('Empty text returned');
         
-        // EXTRAÇÃO INTELIGENTE: Pega apenas o que está entre chaves, ignorando as citações [1] do Google
+        // EXTRAÇÃO INTELIGENTE: Pega apenas o que está entre chaves
         const jsonMatch = text.match(/\{[\s\S]*\}/);
         if (!jsonMatch) throw new Error('Nenhum JSON válido encontrado na resposta');
         
@@ -236,7 +236,8 @@ export default function App() {
       payload.tools = [{ googleSearch: {} }];
     }
 
-    const urlEndpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+    // CORREÇÃO: Usando a tag -latest
+    const urlEndpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${apiKey}`;
 
     for (let i = 0; i < 4; i++) {
       try {
@@ -252,7 +253,7 @@ export default function App() {
         const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
         if (!text) throw new Error('Empty text returned');
         
-        // EXTRAÇÃO INTELIGENTE: Pega apenas o que está entre chaves, ignorando lixo de formatação
+        // EXTRAÇÃO INTELIGENTE: Pega apenas o que está entre chaves
         const jsonMatch = text.match(/\{[\s\S]*\}/);
         if (!jsonMatch) throw new Error('Nenhum JSON válido encontrado na resposta');
         
