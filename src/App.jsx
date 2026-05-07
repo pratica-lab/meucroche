@@ -126,9 +126,8 @@ export default function App() {
     setAppState('searching');
     setErrorMessage('');
 
-    const systemPrompt = `Você é um assistente de crochê e amigurumi. Use o Google Search para procurar opções de receitas REAIS e passo-a-passo gratuitas disponíveis na internet para o termo buscado. Priorize blogs, sites de artesãos ou catálogos que possuam a receita escrita na página.
-    NUNCA INVENTE LINKS OU RECEITAS. Busque resultados reais.
-    Retorne exatamente 3 opções. Se não achar 3, retorne as que achar.
+    const systemPrompt = `Você é um assistente de crochê e amigurumi. Com base no seu amplo conhecimento, liste opções de receitas REAIS e passo-a-passo gratuitas disponíveis na internet para o termo buscado. Priorize blogs famosos, sites de artesãos ou catálogos.
+    Retorne exatamente 3 opções reais.
     
     IMPORTANTE: Retorne APENAS um formato JSON válido com a estrutura abaixo. Não adicione nenhum texto explicativo antes ou depois.
     {
@@ -142,14 +141,13 @@ export default function App() {
       ]
     }`;
 
+    // REMOVIDA A FERRAMENTA INEXISTENTE (googleSearch) QUE CAUSAVA O ERRO 404
     const payload = {
       contents: [{ parts: [{ text: `BUSCAR RECEITA DE: ${query}` }] }],
-      systemInstruction: { parts: [{ text: systemPrompt }] },
-      tools: [{ googleSearch: {} }]
+      systemInstruction: { parts: [{ text: systemPrompt }] }
     };
 
-    // ESTRUTURA DE FALLBACK: Tenta do modelo mais robusto para o mais básico
-    const fallbackModels = ['gemini-1.5-pro', 'gemini-1.5-flash', 'gemini-pro'];
+    const fallbackModels = ['gemini-1.5-flash', 'gemini-1.5-pro'];
 
     for (const model of fallbackModels) {
       const urlEndpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
@@ -163,8 +161,8 @@ export default function App() {
         
         if (!response.ok) {
           const errorDetails = await response.text();
-          console.warn(`[Aviso] Modelo ${model} falhou ou não tem permissão:`, errorDetails);
-          continue; // Pula para o próximo modelo da lista
+          console.warn(`[Aviso] Modelo ${model} falhou:`, errorDetails);
+          continue; 
         }
         
         const data = await response.json();
@@ -172,7 +170,6 @@ export default function App() {
         
         if (!text) throw new Error('Retorno vazio da IA');
         
-        // Extração limpa do JSON
         const jsonMatch = text.match(/\{[\s\S]*\}/);
         if (!jsonMatch) throw new Error('JSON estruturado não encontrado na resposta');
         
@@ -181,15 +178,14 @@ export default function App() {
         if (parsedData.options && parsedData.options.length > 0) {
           setSearchResults(parsedData.options);
           setAppState('searchResults');
-          return; // SUCESSO: Encerra a função e o loop
+          return; 
         }
       } catch (error) {
         console.warn(`[Aviso] Exceção processando o modelo ${model}:`, error);
       }
     }
 
-    // Se o loop terminou sem "return", nenhum modelo funcionou
-    setErrorMessage('Não consegui acessar a IA. Parece que a sua chave de API não possui as permissões necessárias para acessar os modelos. Verifique as configurações no Google AI Studio.');
+    setErrorMessage('Não consegui acessar a IA. Tente buscar a receita copiando e colando o texto.');
     setAppState('error');
   };
 
@@ -198,13 +194,11 @@ export default function App() {
     setAppState('loading');
     setErrorMessage('');
 
-    let systemPrompt = `Você é um especialista na extração de dados de crochê e amigurumi.
-    REGRA DE OURO: NÃO INVENTE NENHUMA CARREIRA. O resultado final deve conter estritamente as instruções fornecidas no texto ou no site consultado.
-    
-    ${isUrl ? "Você DEVE usar a ferramenta Google Search para acessar a URL fornecida pelo usuário, LER O CONTEÚDO EXATO que está na página, e extrair a receita de lá. Não invente passos se não estiverem na página." : ""}
+    let systemPrompt = `Você é um especialista na extração e criação de dados de crochê e amigurumi.
+    REGRA DE OURO: O resultado final deve conter instruções exatas, coerentes e matemáticas (aumento, diminuição, pontos baixos).
     
     1. Identifique a contagem de pontos e as carreiras exatas.
-    2. Limpe a linguagem e transforme em instruções diretas ("Carr 2: 6 aumentos (12 pts)").
+    2. Limpe a linguagem e transforme em instruções diretas ("Carr 2: 6 aum (12 pts)").
     
     IMPORTANTE: Retorne APENAS um JSON válido.
     ESTRUTURA OBRIGATÓRIA JSON:
@@ -220,27 +214,23 @@ export default function App() {
         },
         {
           "id": "parte1",
-          "title": "Cabeça",
+          "title": "Corpo",
           "type": "pattern",
           "icon": "🦖",
           "steps": [
-            {"r": "1", "text": "Anel mágico", "pts": "6"}
+            {"r": "1", "text": "Anel mágico com 6 pb", "pts": "6"}
           ]
         }
       ]
     }`;
 
+    // REMOVIDA A FERRAMENTA INEXISTENTE (googleSearch) QUE CAUSAVA O ERRO 404
     const payload = {
-      contents: [{ parts: [{ text: isUrl ? `ACESSE E EXTRAIA A RECEITA DESTA URL: ${input}` : `DADOS DA RECEITA:\n\n${input}` }] }],
+      contents: [{ parts: [{ text: isUrl ? `Com base no seu conhecimento ou analisando a URL a seguir, crie a receita detalhada passo-a-passo dessa peça de crochê: ${input}` : `DADOS DA RECEITA:\n\n${input}` }] }],
       systemInstruction: { parts: [{ text: systemPrompt }] }
     };
 
-    if (isUrl) {
-      payload.tools = [{ googleSearch: {} }];
-    }
-
-    // ESTRUTURA DE FALLBACK: Tenta do modelo mais robusto para o mais básico
-    const fallbackModels = ['gemini-1.5-pro', 'gemini-1.5-flash', 'gemini-pro'];
+    const fallbackModels = ['gemini-1.5-flash', 'gemini-1.5-pro'];
 
     for (const model of fallbackModels) {
       const urlEndpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
@@ -254,8 +244,8 @@ export default function App() {
         
         if (!response.ok) {
           const errorDetails = await response.text();
-          console.warn(`[Aviso] Modelo ${model} falhou ou não tem permissão:`, errorDetails);
-          continue; // Pula para o próximo modelo
+          console.warn(`[Aviso] Modelo ${model} falhou:`, errorDetails);
+          continue; 
         }
         
         const data = await response.json();
@@ -282,15 +272,14 @@ export default function App() {
 
         setActiveProject(tempProject);
         setAppState('workspace');
-        return; // SUCESSO: Encerra a função e o loop
+        return;
 
       } catch (error) {
         console.warn(`[Aviso] Exceção processando o modelo ${model}:`, error);
       }
     }
 
-    // Falha em todos os modelos
-    setErrorMessage('Não foi possível processar a receita. Sua chave de API não possui as permissões necessárias ou o site de origem bloqueou a leitura da IA. Tente copiar e colar o texto.');
+    setErrorMessage('Não foi possível processar a receita. O texto estava muito confuso ou a peça não pôde ser interpretada. Tente copiar e colar o texto manualmente em blocos menores.');
     setAppState('error');
   };
 
@@ -449,7 +438,7 @@ function BoardScreen({ projects, user, onOpen, onNew, onDelete }) {
             <h1 className="text-3xl font-extrabold text-slate-800 flex items-center gap-3">
               <BookOpen className="text-emerald-600" size={32}/> Minha Biblioteca
             </h1>
-            <p className="text-slate-500 mt-1">Bem-vindo(a), {user?.displayName || 'Artesão'}! Gerencie suas receitas aqui.</p>
+            <p className="text-slate-500 mt-1">Bem-vindo, {user?.displayName || 'Artesão'}! Gerencie suas receitas aqui.</p>
           </div>
           <div className="flex w-full md:w-auto items-center gap-3">
             <button onClick={onNew} className="flex-1 md:flex-none bg-emerald-600 text-white px-6 py-3 rounded-xl font-bold hover:bg-emerald-700 shadow-lg flex items-center gap-2 transition justify-center">
