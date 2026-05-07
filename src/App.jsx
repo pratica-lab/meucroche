@@ -39,7 +39,8 @@ const auth = getAuth(app);
 const db = getFirestore(app);
 const appId = 'meu-croche';
 
-const apiKey = "AIzaSyBu-3uzJAyKwLjvIPvdzWQ5OLLk5yCJPhM";
+// CHAMADA SEGURA DA CHAVE DE API VIA ARQUIVO .env
+const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
 
 // Gerador de ID único
 const generateId = () => Math.random().toString(36).substr(2, 9);
@@ -62,7 +63,7 @@ export default function App() {
   const [user, setUser] = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
 
-  const [appState, setAppState] = useState('board'); // 'board', 'new', 'loading', 'workspace', 'error', 'searching', 'searchResults'
+  const [appState, setAppState] = useState('board'); 
   const [projects, setProjects] = useState([]);
   const [activeProject, setActiveProject] = useState(null); 
   const [errorMessage, setErrorMessage] = useState('');
@@ -97,7 +98,6 @@ export default function App() {
           loadedProjects.push({ id: doc.id, ...doc.data() });
         });
         
-        // Ordena por data de criação
         loadedProjects.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
         setProjects(loadedProjects);
       }, 
@@ -109,7 +109,6 @@ export default function App() {
     return () => unsubscribe();
   }, [user]);
 
-  // Função para logar com o Google
   const handleGoogleLogin = async () => {
     setAuthLoading(true);
     try {
@@ -121,10 +120,15 @@ export default function App() {
     }
   };
 
-  // Função para buscar receitas na web
   const searchWebRecipes = async (query) => {
     setAppState('searching');
     setErrorMessage('');
+
+    if (!apiKey) {
+      setErrorMessage('Chave de API não encontrada. Verifique se o arquivo .env está configurado corretamente.');
+      setAppState('error');
+      return;
+    }
 
     const systemPrompt = `Você é um assistente de crochê e amigurumi. Com base no seu amplo conhecimento, liste opções de receitas REAIS e passo-a-passo gratuitas disponíveis na internet para o termo buscado. Priorize blogs famosos, sites de artesãos ou catálogos.
     Retorne exatamente 3 opções reais.
@@ -141,7 +145,6 @@ export default function App() {
       ]
     }`;
 
-    // REMOVIDA A FERRAMENTA INEXISTENTE (googleSearch) QUE CAUSAVA O ERRO 404
     const payload = {
       contents: [{ parts: [{ text: `BUSCAR RECEITA DE: ${query}` }] }],
       systemInstruction: { parts: [{ text: systemPrompt }] }
@@ -189,10 +192,15 @@ export default function App() {
     setAppState('error');
   };
 
-  // Função para gerar a receita (de texto ou de URL)
   const generatePattern = async (input, isUrl = false) => {
     setAppState('loading');
     setErrorMessage('');
+
+    if (!apiKey) {
+      setErrorMessage('Chave de API não encontrada. Verifique se o arquivo .env está configurado corretamente.');
+      setAppState('error');
+      return;
+    }
 
     let systemPrompt = `Você é um especialista na extração e criação de dados de crochê e amigurumi.
     REGRA DE OURO: O resultado final deve conter instruções exatas, coerentes e matemáticas (aumento, diminuição, pontos baixos).
@@ -224,7 +232,6 @@ export default function App() {
       ]
     }`;
 
-    // REMOVIDA A FERRAMENTA INEXISTENTE (googleSearch) QUE CAUSAVA O ERRO 404
     const payload = {
       contents: [{ parts: [{ text: isUrl ? `Com base no seu conhecimento ou analisando a URL a seguir, crie a receita detalhada passo-a-passo dessa peça de crochê: ${input}` : `DADOS DA RECEITA:\n\n${input}` }] }],
       systemInstruction: { parts: [{ text: systemPrompt }] }
@@ -283,16 +290,11 @@ export default function App() {
     setAppState('error');
   };
 
-  // ==========================================
-  // FUNÇÕES DE MANIPULAÇÃO DE BANCO DE DADOS
-  // ==========================================
   const handleUpdateProject = async (updatedProject) => {
     setActiveProject(updatedProject);
     if (!updatedProject.isTemp && user) {
-      // Atualização otimista
       setProjects(currentProjects => currentProjects.map(p => p.id === updatedProject.id ? updatedProject : p));
       
-      // Salva no Firestore
       try {
         const projectRef = doc(db, 'artifacts', appId, 'users', user.uid, 'projects', updatedProject.id);
         await setDoc(projectRef, updatedProject);
@@ -310,10 +312,8 @@ export default function App() {
     };
     setActiveProject(savedProject);
     
-    // Atualização otimista
     setProjects(currentProjects => [savedProject, ...currentProjects.filter(p => p.id !== savedProject.id)]);
     
-    // Salva no Firestore
     if (user) {
       try {
         const projectRef = doc(db, 'artifacts', appId, 'users', user.uid, 'projects', savedProject.id);
@@ -325,14 +325,12 @@ export default function App() {
   };
 
   const handleDeleteProject = async (id) => {
-    // Atualização otimista
     setProjects(currentProjects => currentProjects.filter(p => p.id !== id));
     if (activeProject?.id === id) {
       setActiveProject(null);
       setAppState('board');
     }
 
-    // Exclui no Firestore
     if (user) {
       try {
         const projectRef = doc(db, 'artifacts', appId, 'users', user.uid, 'projects', id);
@@ -343,7 +341,6 @@ export default function App() {
     }
   };
 
-  // --- RENDER ROUTING ---
   if (!user && appState !== 'searching' && appState !== 'loading' && appState !== 'error') {
     return <LoginScreen onLogin={handleGoogleLogin} loading={authLoading} />;
   }
@@ -372,12 +369,11 @@ export default function App() {
 }
 
 // ==========================================
-// TELA DE LOGIN (NOVA)
+// TELA DE LOGIN
 // ==========================================
 function LoginScreen({ onLogin, loading }) {
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-4 font-sans relative overflow-hidden">
-      {/* Background decorations */}
       <div className="absolute top-[-10%] left-[-10%] w-64 h-64 bg-emerald-200 rounded-full mix-blend-multiply filter blur-3xl opacity-50 animate-blob"></div>
       <div className="absolute top-[-10%] right-[-10%] w-64 h-64 bg-teal-200 rounded-full mix-blend-multiply filter blur-3xl opacity-50 animate-blob animation-delay-2000"></div>
       <div className="absolute bottom-[-20%] left-[20%] w-80 h-80 bg-green-200 rounded-full mix-blend-multiply filter blur-3xl opacity-50 animate-blob animation-delay-4000"></div>
@@ -524,7 +520,6 @@ function BoardScreen({ projects, user, onOpen, onNew, onDelete }) {
           </div>
         )}
 
-        {/* MODAL: EXCLUIR DO PAINEL */}
         {projectToDelete && (
           <div className="fixed inset-0 bg-slate-900/60 z-[100] flex items-center justify-center p-4">
             <div className="bg-white rounded-2xl p-6 max-w-sm w-full shadow-2xl animate-in zoom-in-95">
@@ -549,7 +544,7 @@ function BoardScreen({ projects, user, onOpen, onNew, onDelete }) {
 // ECRÃ PARA NOVA RECEITA (COM TABS)
 // ==========================================
 function NewProjectScreen({ onGenerateText, onSearchWeb, onCancel }) {
-  const [tab, setTab] = useState('search'); // 'search' ou 'text'
+  const [tab, setTab] = useState('search'); 
   const [inputValue, setInputValue] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [showAlternative, setShowAlternative] = useState(false);
@@ -746,7 +741,6 @@ function Workspace({ project, onUpdateProject, onSaveNewProject, onDeleteProject
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [stitchCount, setStitchCount] = useState(0);
   
-  // Modais
   const [showSaveModal, setShowSaveModal] = useState(false);
   const [showCompleteModal, setShowCompleteModal] = useState(false);
   const [showResetConfirm, setShowResetConfirm] = useState(false);
@@ -754,7 +748,6 @@ function Workspace({ project, onUpdateProject, onSaveNewProject, onDeleteProject
   const [showRenameModal, setShowRenameModal] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
-  // Timer State
   const [timerRunning, setTimerRunning] = useState(false);
   const [localTimeSpent, setLocalTimeSpent] = useState(project.timeSpent || 0);
 
@@ -829,11 +822,8 @@ function Workspace({ project, onUpdateProject, onSaveNewProject, onDeleteProject
 
   return (
     <div className="min-h-screen bg-slate-50 font-sans text-slate-800">
-      
-      {/* HEADER PRINCIPAL */}
       <header className="bg-emerald-600 text-white sticky top-0 z-40 shadow-md">
         <div className="flex items-center justify-between p-4 max-w-6xl mx-auto">
-          
           <div className="flex items-center gap-2 sm:gap-4">
             <button onClick={() => setSidebarOpen(true)} className="p-2 hover:bg-emerald-700 rounded-lg lg:hidden">
               <Menu size={24} />
@@ -859,8 +849,6 @@ function Workspace({ project, onUpdateProject, onSaveNewProject, onDeleteProject
           </div>
           
           <div className="flex items-center gap-3 sm:gap-6">
-            
-            {/* TIMER WIDGET */}
             <div className="flex items-center bg-emerald-800/50 rounded-full pl-3 pr-1 py-1 shadow-inner border border-emerald-500/30">
               <Clock size={16} className={`mr-2 hidden sm:block ${timerRunning ? 'text-emerald-300 animate-pulse' : 'text-emerald-200'}`} />
               <span className="font-mono font-bold text-sm sm:text-base mr-3 tracking-wider">
@@ -874,7 +862,6 @@ function Workspace({ project, onUpdateProject, onSaveNewProject, onDeleteProject
               </button>
             </div>
 
-            {/* BOTÕES DE AÇÃO */}
             <div className="hidden sm:flex items-center gap-2">
               {project.isTemp ? (
                 <button onClick={() => setShowSaveModal(true)} className="bg-white text-emerald-700 text-sm font-bold px-4 py-2 rounded-lg hover:bg-emerald-50 transition flex items-center gap-2 shadow-sm">
@@ -886,18 +873,13 @@ function Workspace({ project, onUpdateProject, onSaveNewProject, onDeleteProject
                 </button>
               )}
             </div>
-            
           </div>
         </div>
       </header>
 
-      {/* LAYOUT PRINCIPAL */}
       <div className="max-w-6xl mx-auto flex">
-        
-        {/* OVERLAY MOBILE */}
         {sidebarOpen && <div className="fixed inset-0 bg-black/50 z-[45] lg:hidden" onClick={() => setSidebarOpen(false)}/>}
         
-        {/* SIDEBAR */}
         <aside className={`
           fixed lg:sticky top-0 left-0 h-screen lg:h-[calc(100vh-64px)] 
           w-72 bg-white shadow-xl lg:shadow-none lg:border-r border-slate-200
@@ -910,7 +892,6 @@ function Workspace({ project, onUpdateProject, onSaveNewProject, onDeleteProject
             <button onClick={() => setSidebarOpen(false)} className="text-emerald-700 p-1"><X size={20} /></button>
           </div>
 
-          {/* AÇÕES MOBILE */}
           <div className="p-4 border-b border-slate-100 lg:hidden flex flex-col gap-2">
             {project.isTemp ? (
               <button onClick={() => { setSidebarOpen(false); setShowSaveModal(true); }} className="w-full bg-emerald-600 text-white font-bold py-3 rounded-xl flex items-center justify-center gap-2">
@@ -943,9 +924,7 @@ function Workspace({ project, onUpdateProject, onSaveNewProject, onDeleteProject
             })}
           </div>
 
-          {/* MENUS INFERIORES SIDEBAR */}
           <div className="p-4 border-t border-slate-100 flex flex-col gap-2">
-              
              {project.history?.length > 0 && (
                <button onClick={() => {setSidebarOpen(false); setShowHistoryModal(true);}} className="w-full flex items-center justify-between p-3 text-slate-700 hover:bg-slate-50 rounded-xl transition-colors border border-slate-200">
                  <span className="flex items-center gap-2 font-bold"><History size={16} className="text-emerald-600"/> Histórico</span>
@@ -968,7 +947,6 @@ function Workspace({ project, onUpdateProject, onSaveNewProject, onDeleteProject
           </div>
         </aside>
 
-        {/* ÁREA CENTRAL DE CONTEÚDO */}
         <main className="flex-1 p-4 sm:p-8 min-h-[calc(100vh-64px)] pb-40">
           <div className="max-w-2xl mx-auto">
             <div className="mb-8">
@@ -977,7 +955,6 @@ function Workspace({ project, onUpdateProject, onSaveNewProject, onDeleteProject
               </h2>
             </div>
 
-            {/* SEÇÃO TEXTO */}
             {activeSection.type === 'text' && (
               <div className="bg-white p-6 sm:p-8 rounded-2xl shadow-sm border border-slate-200 space-y-4">
                 {activeSection.steps?.map((step, idx) => (
@@ -993,7 +970,6 @@ function Workspace({ project, onUpdateProject, onSaveNewProject, onDeleteProject
               </div>
             )}
 
-            {/* SEÇÃO PADRÃO INTERATIVA */}
             {activeSection.type === 'pattern' && (
               <div className="space-y-4">
                 {isSectionComplete(activeSection) ? (
@@ -1056,7 +1032,6 @@ function Workspace({ project, onUpdateProject, onSaveNewProject, onDeleteProject
               </div>
             )}
 
-            {/* SEÇÃO DE OBSERVAÇÕES / COMENTÁRIOS */}
             <div className="mt-10 bg-amber-50/50 border border-amber-200 rounded-2xl p-6 shadow-sm">
               <h3 className="text-amber-800 font-bold mb-3 flex items-center gap-2">
                 <MessageSquare size={18} /> Minhas Observações ({activeSection.title})
@@ -1076,7 +1051,6 @@ function Workspace({ project, onUpdateProject, onSaveNewProject, onDeleteProject
         </main>
       </div>
 
-      {/* CONTADOR DE PONTOS FLUTUANTE */}
       {activeSection.type === 'pattern' && !isSectionComplete(activeSection) && activeSection.steps[currentStepIndex]?.type !== 'info' && (
         <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-white rounded-full shadow-[0_10px_40px_rgba(0,0,0,0.15)] border border-slate-200 flex items-center p-2 z-30">
           <button onClick={() => setStitchCount(s => Math.max(0, s-1))} className="w-12 h-12 flex items-center justify-center text-slate-400 hover:bg-slate-100 rounded-full transition"><Minus size={24} /></button>
@@ -1088,8 +1062,6 @@ function Workspace({ project, onUpdateProject, onSaveNewProject, onDeleteProject
         </div>
       )}
 
-      {/* MODAIS (Save, Rename, Reset, Complete, History) */}
-      
       {showSaveModal && (
         <div className="fixed inset-0 bg-slate-900/60 z-[100] flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl p-8 max-w-sm w-full shadow-2xl animate-in zoom-in-95">
@@ -1160,7 +1132,6 @@ function Workspace({ project, onUpdateProject, onSaveNewProject, onDeleteProject
         </div>
       )}
 
-      {/* MODAL: EXCLUIR RECEITA DE DENTRO DO WORKSPACE */}
       {showDeleteConfirm && (
         <div className="fixed inset-0 bg-slate-900/60 z-[100] flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl p-6 max-w-sm w-full shadow-2xl animate-in zoom-in-95">
@@ -1227,7 +1198,6 @@ function Workspace({ project, onUpdateProject, onSaveNewProject, onDeleteProject
   );
 }
 
-// Sub-componente do Modal de Conclusão da Peça
 function CompletionModal({ timeSpent, isTemp, onClose, onPromptSave, onSave }) {
   const [difficulty, setDifficulty] = useState('Médio');
   const [rating, setRating] = useState(0);
