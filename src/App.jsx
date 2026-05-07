@@ -121,66 +121,65 @@ export default function App() {
     }
   };
 
-  // Função para buscar receitas na web
+ // Função para buscar receitas na web
   const searchWebRecipes = async (query) => {
     setAppState('searching');
     setErrorMessage('');
 
-    const systemPrompt = `Você é um assistente de crochê e amigurumi. Use o Google Search para procurar opções de receitas REAIS e passo-a-passo gratuitas disponíveis na internet para o termo buscado. Priorize blogs, sites de artesãos ou catálogos (ex: Círculo, Amigurumi.com, etc) que possuam a receita escrita na página.
+    const systemPrompt = `Você é um assistente de crochê e amigurumi. Use o Google Search para procurar opções de receitas REAIS e passo-a-passo gratuitas disponíveis na internet para o termo buscado. Priorize blogs, sites de artesãos ou catálogos que possuam a receita escrita na página.
     NUNCA INVENTE LINKS OU RECEITAS. Busque resultados reais.
-    Retorne exatamente 3 opções. Se não achar 3, retorne as que achar.`;
-
-    const schema = {
-      type: "OBJECT",
-      properties: {
-        options: {
-          type: "ARRAY",
-          items: {
-            type: "OBJECT",
-            properties: {
-              title: { type: "STRING", description: "Título da receita encontrada" },
-              source: { type: "STRING", description: "Nome do site ou blog" },
-              url: { type: "STRING", description: "URL real da página da receita" },
-              description: { type: "STRING", description: "Breve resumo do que é a peça" }
-            },
-            required: ["title", "source", "url", "description"]
-          }
+    Retorne exatamente 3 opções. Se não achar 3, retorne as que achar.
+    
+    IMPORTANTE: Retorne APENAS um formato JSON válido com a estrutura abaixo. Não adicione nenhum texto explicativo antes ou depois.
+    {
+      "options": [
+        {
+          "title": "Título",
+          "source": "Nome do site",
+          "url": "URL real",
+          "description": "Breve resumo"
         }
-      },
-      required: ["options"]
-    };
+      ]
+    }`;
 
     const payload = {
       contents: [{ parts: [{ text: `BUSCAR RECEITA DE: ${query}` }] }],
       systemInstruction: { parts: [{ text: systemPrompt }] },
-      // CORREÇÃO 1: Nomenclatura da tool de pesquisa (googleSearch em vez de google_search)
-      tools: [{ googleSearch: {} }],
-      generationConfig: { responseMimeType: "application/json", responseSchema: schema }
+      tools: [{ googleSearch: {} }]
+      // Removemos o generationConfig para evitar conflito com o googleSearch
     };
 
-    // CORREÇÃO 2: Utilização de um modelo estável
     const urlEndpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
 
     for (let i = 0; i < 3; i++) {
       try {
         const response = await fetch(urlEndpoint, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
-        if (!response.ok) throw new Error('HTTP Error');
+        
+        if (!response.ok) {
+          const errorDetails = await response.text();
+          console.error("Erro HTTP da API:", errorDetails);
+          throw new Error('HTTP Error');
+        }
+        
         const data = await response.json();
         const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
-        if (!text) throw new Error('Empty');
+        if (!text) throw new Error('Empty text returned');
         
-        // CORREÇÃO 3: Limpeza de formatação markdown antes do parse do JSON
-        const cleanText = text.replace(/```json/gi, '').replace(/```/g, '').trim();
-        const parsedData = JSON.parse(cleanText);
+        // EXTRAÇÃO INTELIGENTE: Pega apenas o que está entre chaves, ignorando as citações [1] do Google
+        const jsonMatch = text.match(/\{[\s\S]*\}/);
+        if (!jsonMatch) throw new Error('Nenhum JSON válido encontrado na resposta');
+        
+        const parsedData = JSON.parse(jsonMatch[0]);
         
         if (parsedData.options && parsedData.options.length > 0) {
           setSearchResults(parsedData.options);
           setAppState('searchResults');
           return;
         } else {
-          throw new Error('No results');
+          throw new Error('No results array found');
         }
       } catch (error) {
+        console.error(`Falha na tentativa ${i + 1} de busca:`, error);
         if (i === 2) {
           setErrorMessage('Não consegui encontrar opções de receitas claras para esse termo. Tente buscar de outra forma (ex: "Urso amigurumi receita escrita").');
           setAppState('error');
@@ -204,67 +203,60 @@ export default function App() {
     1. Identifique a contagem de pontos e as carreiras exatas.
     2. Limpe a linguagem e transforme em instruções diretas ("Carr 2: 6 aumentos (12 pts)").
     
+    IMPORTANTE: Retorne APENAS um JSON válido.
     ESTRUTURA OBRIGATÓRIA JSON:
-    - projectName: "Nome da Peça"
-    - sections: Array de seções (id, title, type: 'text'|'pattern', icon).
-    - O campo 'icon' DEVE SER UM ÚNICO EMOJI (ex: 🧶, 🪡, ✨, 🦖). Nunca palavras.
-    - A primeira seção DEVE ser type: "text" (id "intro").
-    - As seções 'pattern' têm 'steps' (r: carreira, text: instrução, pts: pontos, type: 'info' para dicas).`;
-
-    const schema = {
-      type: "OBJECT",
-      properties: {
-        projectName: { type: "STRING" },
-        sections: {
-          type: "ARRAY",
-          items: {
-            type: "OBJECT",
-            properties: {
-              id: { type: "STRING" },
-              title: { type: "STRING" },
-              type: { type: "STRING" },
-              icon: { type: "STRING" },
-              steps: {
-                type: "ARRAY",
-                items: {
-                  type: "OBJECT",
-                  properties: { r: { type: "STRING" }, text: { type: "STRING" }, pts: { type: "STRING" }, type: { type: "STRING" } },
-                  required: ["r", "text"]
-                }
-              }
-            },
-            required: ["id", "title", "type", "icon", "steps"]
-          }
+    {
+      "projectName": "Nome da Peça",
+      "sections": [
+        {
+          "id": "intro",
+          "title": "Materiais",
+          "type": "text",
+          "icon": "🧶",
+          "steps": [{"r": "", "text": "Lista de materiais"}]
+        },
+        {
+          "id": "parte1",
+          "title": "Cabeça",
+          "type": "pattern",
+          "icon": "🦖",
+          "steps": [
+            {"r": "1", "text": "Anel mágico", "pts": "6"}
+          ]
         }
-      },
-      required: ["projectName", "sections"]
-    };
+      ]
+    }`;
 
     const payload = {
       contents: [{ parts: [{ text: isUrl ? `ACESSE E EXTRAIA A RECEITA DESTA URL: ${input}` : `DADOS DA RECEITA:\n\n${input}` }] }],
-      systemInstruction: { parts: [{ text: systemPrompt }] },
-      generationConfig: { responseMimeType: "application/json", responseSchema: schema }
+      systemInstruction: { parts: [{ text: systemPrompt }] }
     };
 
     if (isUrl) {
-      // CORREÇÃO 1: Nomenclatura da tool de pesquisa (googleSearch em vez de google_search)
       payload.tools = [{ googleSearch: {} }];
     }
 
-    // CORREÇÃO 2: Utilização de um modelo estável
     const urlEndpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
 
     for (let i = 0; i < 4; i++) {
       try {
         const response = await fetch(urlEndpoint, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
-        if (!response.ok) throw new Error('HTTP Error');
+        
+        if (!response.ok) {
+          const errorDetails = await response.text();
+          console.error("Erro HTTP da API:", errorDetails);
+          throw new Error('HTTP Error');
+        }
+        
         const data = await response.json();
         const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
-        if (!text) throw new Error('Empty');
+        if (!text) throw new Error('Empty text returned');
         
-        // CORREÇÃO 3: Limpeza de formatação markdown antes do parse do JSON
-        const cleanText = text.replace(/```json/gi, '').replace(/```/g, '').trim();
-        const parsedData = JSON.parse(cleanText);
+        // EXTRAÇÃO INTELIGENTE: Pega apenas o que está entre chaves, ignorando lixo de formatação
+        const jsonMatch = text.match(/\{[\s\S]*\}/);
+        if (!jsonMatch) throw new Error('Nenhum JSON válido encontrado na resposta');
+        
+        const parsedData = JSON.parse(jsonMatch[0]);
         
         const tempProject = {
           id: generateId(),
@@ -282,6 +274,7 @@ export default function App() {
         setAppState('workspace');
         return;
       } catch (error) {
+        console.error(`Falha na extração da receita (Tentativa ${i + 1}):`, error);
         if (i === 3) {
           setErrorMessage('Não foi possível processar a receita. O site pode estar bloqueado ou o texto estava confuso. Tente copiar e colar o texto manualmente.');
           setAppState('error');
