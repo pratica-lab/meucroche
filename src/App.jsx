@@ -148,46 +148,49 @@ export default function App() {
       tools: [{ googleSearch: {} }]
     };
 
-    // CORREÇÃO: Usando a versão exata e estática do modelo
-    const urlEndpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-002:generateContent?key=${apiKey}`;
+    // ESTRUTURA DE FALLBACK: Tenta do modelo mais robusto para o mais básico
+    const fallbackModels = ['gemini-1.5-pro', 'gemini-1.5-flash', 'gemini-pro'];
 
-    for (let i = 0; i < 3; i++) {
+    for (const model of fallbackModels) {
+      const urlEndpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+      
       try {
-        const response = await fetch(urlEndpoint, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+        const response = await fetch(urlEndpoint, { 
+          method: 'POST', 
+          headers: { 'Content-Type': 'application/json' }, 
+          body: JSON.stringify(payload) 
+        });
         
         if (!response.ok) {
           const errorDetails = await response.text();
-          console.error("Erro HTTP da API:", errorDetails);
-          throw new Error('HTTP Error');
+          console.warn(`[Aviso] Modelo ${model} falhou ou não tem permissão:`, errorDetails);
+          continue; // Pula para o próximo modelo da lista
         }
         
         const data = await response.json();
         const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
-        if (!text) throw new Error('Empty text returned');
         
-        // EXTRAÇÃO INTELIGENTE: Pega apenas o que está entre chaves
+        if (!text) throw new Error('Retorno vazio da IA');
+        
+        // Extração limpa do JSON
         const jsonMatch = text.match(/\{[\s\S]*\}/);
-        if (!jsonMatch) throw new Error('Nenhum JSON válido encontrado na resposta');
+        if (!jsonMatch) throw new Error('JSON estruturado não encontrado na resposta');
         
         const parsedData = JSON.parse(jsonMatch[0]);
         
         if (parsedData.options && parsedData.options.length > 0) {
           setSearchResults(parsedData.options);
           setAppState('searchResults');
-          return;
-        } else {
-          throw new Error('No results array found');
+          return; // SUCESSO: Encerra a função e o loop
         }
       } catch (error) {
-        console.error(`Falha na tentativa ${i + 1} de busca:`, error);
-        if (i === 2) {
-          setErrorMessage('Não consegui encontrar opções de receitas claras para esse termo. Tente buscar de outra forma (ex: "Urso amigurumi receita escrita").');
-          setAppState('error');
-        } else {
-          await new Promise(r => setTimeout(r, 2000 * (i+1)));
-        }
+        console.warn(`[Aviso] Exceção processando o modelo ${model}:`, error);
       }
     }
+
+    // Se o loop terminou sem "return", nenhum modelo funcionou
+    setErrorMessage('Não consegui acessar a IA. Parece que a sua chave de API não possui as permissões necessárias para acessar os modelos. Verifique as configurações no Google AI Studio.');
+    setAppState('error');
   };
 
   // Função para gerar a receita (de texto ou de URL)
@@ -236,26 +239,32 @@ export default function App() {
       payload.tools = [{ googleSearch: {} }];
     }
 
-    // CORREÇÃO: Usando a versão exata e estática do modelo
-    const urlEndpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-002:generateContent?key=${apiKey}`;
+    // ESTRUTURA DE FALLBACK: Tenta do modelo mais robusto para o mais básico
+    const fallbackModels = ['gemini-1.5-pro', 'gemini-1.5-flash', 'gemini-pro'];
 
-    for (let i = 0; i < 4; i++) {
+    for (const model of fallbackModels) {
+      const urlEndpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+      
       try {
-        const response = await fetch(urlEndpoint, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+        const response = await fetch(urlEndpoint, { 
+          method: 'POST', 
+          headers: { 'Content-Type': 'application/json' }, 
+          body: JSON.stringify(payload) 
+        });
         
         if (!response.ok) {
           const errorDetails = await response.text();
-          console.error("Erro HTTP da API:", errorDetails);
-          throw new Error('HTTP Error');
+          console.warn(`[Aviso] Modelo ${model} falhou ou não tem permissão:`, errorDetails);
+          continue; // Pula para o próximo modelo
         }
         
         const data = await response.json();
         const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
-        if (!text) throw new Error('Empty text returned');
         
-        // EXTRAÇÃO INTELIGENTE: Pega apenas o que está entre chaves
+        if (!text) throw new Error('Retorno vazio da IA');
+        
         const jsonMatch = text.match(/\{[\s\S]*\}/);
-        if (!jsonMatch) throw new Error('Nenhum JSON válido encontrado na resposta');
+        if (!jsonMatch) throw new Error('JSON estruturado não encontrado');
         
         const parsedData = JSON.parse(jsonMatch[0]);
         
@@ -273,17 +282,16 @@ export default function App() {
 
         setActiveProject(tempProject);
         setAppState('workspace');
-        return;
+        return; // SUCESSO: Encerra a função e o loop
+
       } catch (error) {
-        console.error(`Falha na extração da receita (Tentativa ${i + 1}):`, error);
-        if (i === 3) {
-          setErrorMessage('Não foi possível processar a receita. O site pode estar bloqueado ou o texto estava confuso. Tente copiar e colar o texto manualmente.');
-          setAppState('error');
-        } else {
-          await new Promise(r => setTimeout(r, 2000 * (i+1)));
-        }
+        console.warn(`[Aviso] Exceção processando o modelo ${model}:`, error);
       }
     }
+
+    // Falha em todos os modelos
+    setErrorMessage('Não foi possível processar a receita. Sua chave de API não possui as permissões necessárias ou o site de origem bloqueou a leitura da IA. Tente copiar e colar o texto.');
+    setAppState('error');
   };
 
   // ==========================================
