@@ -3,7 +3,7 @@ import {
   Menu, X, Check, ChevronRight, Plus, Minus, RotateCcw, 
   Info, Hash, FileText, Loader2, Play, AlertCircle, Link as LinkIcon, 
   ExternalLink, Home, Star, Trash2, Award, BookOpen, Clock, Pause, Save, History,
-  Pencil, MessageSquare, Search, Globe, LogOut
+  Pencil, MessageSquare, Search, Globe, LogOut, Sun, Moon, Tag
 } from 'lucide-react';
 
 // === IMPORTAÇÕES DO FIREBASE ===
@@ -39,13 +39,10 @@ const auth = getAuth(app);
 const db = getFirestore(app);
 const appId = 'meu-croche';
 
-// CHAMADA SEGURA DA CHAVE DE API VIA ARQUIVO .env
 const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
 
-// Gerador de ID único
 const generateId = () => Math.random().toString(36).substr(2, 9);
 
-// Formatação de Tempo (segundos para HH:MM:SS)
 const formatTime = (totalSeconds) => {
   const h = Math.floor(totalSeconds / 3600);
   const m = Math.floor((totalSeconds % 3600) / 60);
@@ -53,7 +50,6 @@ const formatTime = (totalSeconds) => {
   return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
 };
 
-// Formatação de Data
 const formatDate = (dateString) => {
   const options = { day: '2-digit', month: '2-digit', year: 'numeric' };
   return new Date(dateString).toLocaleDateString('pt-BR', options);
@@ -70,20 +66,43 @@ export default function App() {
   const [searchResults, setSearchResults] = useState([]);
 
   // ==========================================
-  // EFEITO 1: INICIALIZAÇÃO DE AUTENTICAÇÃO
+  // FAVICON & MODO ESCURO (THEME)
   // ==========================================
+  const [isDarkMode, setIsDarkMode] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('theme') === 'dark';
+    }
+    return false;
+  });
+
+  useEffect(() => {
+    // 1. Injetar Favicon dinâmico do Crochê
+    const link = document.querySelector("link[rel~='icon']") || document.createElement('link');
+    link.type = 'image/svg+xml';
+    link.rel = 'icon';
+    link.href = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><text y=".9em" font-size="90">🧶</text></svg>';
+    document.getElementsByTagName('head')[0].appendChild(link);
+  }, []);
+
+  useEffect(() => {
+    // 2. Aplicar modo escuro persistente
+    if (isDarkMode) {
+      document.documentElement.classList.add('dark');
+      localStorage.setItem('theme', 'dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+      localStorage.setItem('theme', 'light');
+    }
+  }, [isDarkMode]);
+
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);
       setAuthLoading(false);
     });
-
     return () => unsubscribe();
   }, []);
 
-  // ==========================================
-  // EFEITO 2: BUSCAR PROJETOS DO FIRESTORE
-  // ==========================================
   useEffect(() => {
     if (!user) {
       setProjects([]);
@@ -152,8 +171,8 @@ export default function App() {
 
     const fallbackModels = [
       'gemini-2.5-flash', 
-     'gemini-flash-latest', 
-     'gemini-2.5-pro'
+      'gemini-flash-latest', 
+      'gemini-2.5-pro'
     ];
     for (const model of fallbackModels) {
       const urlEndpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
@@ -210,11 +229,13 @@ export default function App() {
     
     1. Identifique a contagem de pontos e as carreiras exatas.
     2. Limpe a linguagem e transforme em instruções diretas ("Carr 2: 6 aum (12 pts)").
+    3. Crie um prompt descritivo em INGLÊS para gerar uma foto hiper realista desta peça concluída.
     
     IMPORTANTE: Retorne APENAS um JSON válido.
     ESTRUTURA OBRIGATÓRIA JSON:
     {
       "projectName": "Nome da Peça",
+      "imagePrompt": "high quality realistic photography of a handmade crochet amigurumi [peça], soft studio lighting, white background, detailed texture",
       "sections": [
         {
           "id": "intro",
@@ -243,7 +264,7 @@ export default function App() {
     const fallbackModels = [
       'gemini-2.5-flash', 
       'gemini-flash-latest', 
-     'gemini-2.5-pro'
+      'gemini-2.5-pro'
     ];
     for (const model of fallbackModels) {
       const urlEndpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
@@ -276,6 +297,7 @@ export default function App() {
           isTemp: true,
           name: parsedData.projectName || 'Nova Receita',
           data: parsedData,
+          tags: [], // Inicializa array de tags
           progress: {},
           notes: {},
           timeSpent: 0,
@@ -371,7 +393,17 @@ export default function App() {
     );
   }
 
-  return <BoardScreen projects={projects} user={user} onOpen={(project) => { setActiveProject(project); setAppState('workspace'); }} onNew={() => setAppState('new')} onDelete={handleDeleteProject} />;
+  return (
+    <BoardScreen 
+      projects={projects} 
+      user={user} 
+      onOpen={(project) => { setActiveProject(project); setAppState('workspace'); }} 
+      onNew={() => setAppState('new')} 
+      onDelete={handleDeleteProject} 
+      isDarkMode={isDarkMode}
+      toggleDarkMode={() => setIsDarkMode(!isDarkMode)}
+    />
+  );
 }
 
 // ==========================================
@@ -379,28 +411,27 @@ export default function App() {
 // ==========================================
 function LoginScreen({ onLogin, loading }) {
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-4 font-sans relative overflow-hidden">
-      <div className="absolute top-[-10%] left-[-10%] w-64 h-64 bg-emerald-200 rounded-full mix-blend-multiply filter blur-3xl opacity-50 animate-blob"></div>
-      <div className="absolute top-[-10%] right-[-10%] w-64 h-64 bg-teal-200 rounded-full mix-blend-multiply filter blur-3xl opacity-50 animate-blob animation-delay-2000"></div>
-      <div className="absolute bottom-[-20%] left-[20%] w-80 h-80 bg-green-200 rounded-full mix-blend-multiply filter blur-3xl opacity-50 animate-blob animation-delay-4000"></div>
-
-      <div className="max-w-md w-full bg-white rounded-3xl shadow-2xl p-8 sm:p-10 text-center relative z-10 border border-slate-100">
-        <div className="w-20 h-20 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto mb-6 shadow-inner">
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-900 flex flex-col items-center justify-center p-4 font-sans relative overflow-hidden transition-colors">
+      <div className="absolute top-[-10%] left-[-10%] w-64 h-64 bg-emerald-200 dark:bg-emerald-900 rounded-full mix-blend-multiply filter blur-3xl opacity-50 animate-blob"></div>
+      <div className="absolute top-[-10%] right-[-10%] w-64 h-64 bg-teal-200 dark:bg-teal-900 rounded-full mix-blend-multiply filter blur-3xl opacity-50 animate-blob animation-delay-2000"></div>
+      
+      <div className="max-w-md w-full bg-white dark:bg-slate-800 rounded-3xl shadow-2xl p-8 sm:p-10 text-center relative z-10 border border-slate-100 dark:border-slate-700 transition-colors">
+        <div className="w-20 h-20 bg-emerald-100 dark:bg-emerald-800/50 text-emerald-600 dark:text-emerald-400 rounded-full flex items-center justify-center mx-auto mb-6 shadow-inner">
           <BookOpen size={40} />
         </div>
         
-        <h1 className="text-3xl font-extrabold text-slate-800 mb-2">Meu Crochê</h1>
-        <p className="text-slate-500 mb-10 leading-relaxed">
+        <h1 className="text-3xl font-extrabold text-slate-800 dark:text-slate-100 mb-2">Meu Crochê</h1>
+        <p className="text-slate-500 dark:text-slate-400 mb-10 leading-relaxed">
           Sua biblioteca digital de receitas inteligente. Acompanhe seus pontos de qualquer lugar!
         </p>
 
         <button 
           onClick={onLogin} 
           disabled={loading}
-          className="w-full bg-white border border-slate-300 text-slate-700 font-bold py-4 px-6 rounded-xl shadow-sm hover:bg-slate-50 hover:shadow transition disabled:opacity-70 flex items-center justify-center gap-3"
+          className="w-full bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-200 font-bold py-4 px-6 rounded-xl shadow-sm hover:bg-slate-50 dark:hover:bg-slate-600 hover:shadow transition disabled:opacity-70 flex items-center justify-center gap-3"
         >
           {loading ? (
-            <Loader2 className="animate-spin text-emerald-600" size={24} />
+            <Loader2 className="animate-spin text-emerald-600 dark:text-emerald-400" size={24} />
           ) : (
             <>
               <svg className="w-6 h-6" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
@@ -414,7 +445,7 @@ function LoginScreen({ onLogin, loading }) {
           )}
         </button>
 
-        <div className="mt-8 text-xs text-slate-400 font-medium flex items-center justify-center gap-1">
+        <div className="mt-8 text-xs text-slate-400 dark:text-slate-500 font-medium flex items-center justify-center gap-1">
           Seus dados são salvos com segurança na nuvem <Check size={14} className="text-emerald-500"/>
         </div>
       </div>
@@ -425,45 +456,74 @@ function LoginScreen({ onLogin, loading }) {
 // ==========================================
 // PAINEL (BOARD)
 // ==========================================
-function BoardScreen({ projects, user, onOpen, onNew, onDelete }) {
+function BoardScreen({ projects, user, onOpen, onNew, onDelete, isDarkMode, toggleDarkMode }) {
   const [projectToDelete, setProjectToDelete] = useState(null);
+  const [searchTerm, setSearchTerm] = useState('');
 
   const handleLogout = () => {
     signOut(auth);
   };
 
+  const filteredProjects = projects.filter(p => {
+    const matchName = p.name.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchTags = p.tags?.some(tag => tag.toLowerCase().includes(searchTerm.toLowerCase()));
+    return matchName || matchTags;
+  });
+
   return (
-    <div className="min-h-screen bg-slate-100 p-4 sm:p-8 font-sans">
+    <div className="min-h-screen bg-slate-100 dark:bg-slate-900 p-4 sm:p-8 font-sans transition-colors">
       <div className="max-w-6xl mx-auto">
-        <header className="flex flex-col md:flex-row justify-between items-start md:items-center mb-10 gap-4">
+        <header className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
           <div>
-            <h1 className="text-3xl font-extrabold text-slate-800 flex items-center gap-3">
-              <BookOpen className="text-emerald-600" size={32}/> Minha Biblioteca
+            <h1 className="text-3xl font-extrabold text-slate-800 dark:text-slate-100 flex items-center gap-3">
+              <BookOpen className="text-emerald-600 dark:text-emerald-500" size={32}/> Minha Biblioteca
             </h1>
-            <p className="text-slate-500 mt-1">Bem-vindo, {user?.displayName || 'Artesão'}! Gerencie suas receitas aqui.</p>
+            <p className="text-slate-500 dark:text-slate-400 mt-1">Bem-vindo, {user?.displayName || 'Artesão'}! Gerencie suas receitas aqui.</p>
           </div>
           <div className="flex w-full md:w-auto items-center gap-3">
+            <button onClick={toggleDarkMode} className="p-3 rounded-xl bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 shadow-sm transition">
+              {isDarkMode ? <Sun size={20}/> : <Moon size={20}/>}
+            </button>
             <button onClick={onNew} className="flex-1 md:flex-none bg-emerald-600 text-white px-6 py-3 rounded-xl font-bold hover:bg-emerald-700 shadow-lg flex items-center gap-2 transition justify-center">
               <Plus size={20}/> Adicionar
             </button>
-            <button onClick={handleLogout} className="bg-white border border-slate-200 text-slate-600 px-4 py-3 rounded-xl font-bold hover:bg-slate-50 hover:text-red-600 shadow-sm flex items-center gap-2 transition justify-center" title="Sair da Conta">
+            <button onClick={handleLogout} className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 px-4 py-3 rounded-xl font-bold hover:bg-slate-50 dark:hover:bg-slate-700 hover:text-red-600 dark:hover:text-red-400 shadow-sm flex items-center gap-2 transition justify-center" title="Sair da Conta">
               <LogOut size={20}/> Sair
             </button>
           </div>
         </header>
 
-        {projects.length === 0 ? (
-          <div className="bg-white rounded-3xl p-12 text-center border-2 border-dashed border-slate-300 flex flex-col items-center shadow-sm">
-            <FileText size={64} className="text-slate-300 mb-4" />
-            <h2 className="text-2xl font-bold text-slate-700 mb-2">Nenhuma receita salva</h2>
-            <p className="text-slate-500 mb-8 max-w-md">Seu painel está vazio. Importe sua primeira receita ou busque na internet para começar a crochetá-la!</p>
-            <button onClick={onNew} className="bg-emerald-100 text-emerald-800 px-6 py-3 rounded-xl font-bold hover:bg-emerald-200 transition">
-              Nova Receita
-            </button>
+        {projects.length > 0 && (
+          <div className="mb-8 relative">
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
+            <input 
+              type="text"
+              placeholder="Buscar por nome ou tag (ex: polvo, amigurumi)..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full pl-12 pr-4 py-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 outline-none shadow-sm transition-colors"
+            />
+          </div>
+        )}
+
+        {filteredProjects.length === 0 ? (
+          <div className="bg-white dark:bg-slate-800 rounded-3xl p-12 text-center border-2 border-dashed border-slate-300 dark:border-slate-700 flex flex-col items-center shadow-sm transition-colors">
+            <FileText size={64} className="text-slate-300 dark:text-slate-600 mb-4" />
+            <h2 className="text-2xl font-bold text-slate-700 dark:text-slate-200 mb-2">
+              {searchTerm ? 'Nenhuma receita encontrada' : 'Nenhuma receita salva'}
+            </h2>
+            <p className="text-slate-500 dark:text-slate-400 mb-8 max-w-md">
+              {searchTerm ? 'Tente buscar com outros termos ou tags.' : 'Seu painel está vazio. Importe sua primeira receita ou busque na internet para começar a crochetá-la!'}
+            </p>
+            {!searchTerm && (
+              <button onClick={onNew} className="bg-emerald-100 dark:bg-emerald-900/50 text-emerald-800 dark:text-emerald-300 px-6 py-3 rounded-xl font-bold hover:bg-emerald-200 dark:hover:bg-emerald-800/50 transition">
+                Nova Receita
+              </button>
+            )}
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {projects.map(project => {
+            {filteredProjects.map(project => {
               const totalSteps = project.data.sections.filter(s=>s.type==='pattern').reduce((acc, s) => acc + (s.steps?.length || 0), 0);
               let completedSteps = 0;
               project.data.sections.filter(s=>s.type==='pattern').forEach(s => {
@@ -473,12 +533,12 @@ function BoardScreen({ projects, user, onOpen, onNew, onDelete }) {
               const completionsCount = project.history?.length || 0;
 
               return (
-                <div key={project.id} className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden hover:shadow-xl transition-shadow flex flex-col relative group">
+                <div key={project.id} className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden hover:shadow-xl transition-all flex flex-col relative group">
                   
                   <button onClick={(e) => { 
                     e.stopPropagation(); 
                     setProjectToDelete(project);
-                  }} className="absolute top-4 right-4 text-slate-300 hover:text-red-500 bg-white p-1.5 rounded-lg shadow-sm opacity-0 group-hover:opacity-100 transition z-10" title="Excluir Receita">
+                  }} className="absolute top-4 right-4 text-slate-300 dark:text-slate-500 hover:text-red-500 dark:hover:text-red-400 bg-white dark:bg-slate-800 p-1.5 rounded-lg shadow-sm opacity-0 group-hover:opacity-100 transition z-10" title="Excluir Receita">
                     <Trash2 size={18} />
                   </button>
 
@@ -486,35 +546,49 @@ function BoardScreen({ projects, user, onOpen, onNew, onDelete }) {
                     <div className="flex justify-between items-start mb-4">
                       <span className="text-4xl">{project.data.sections[0]?.icon || '🧶'}</span>
                       {completionsCount > 0 && (
-                        <span className="bg-amber-100 text-amber-700 text-xs font-bold px-3 py-1 rounded-full flex items-center gap-1">
+                        <span className="bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 text-xs font-bold px-3 py-1 rounded-full flex items-center gap-1">
                           <Award size={14} /> Feita {completionsCount}x
                         </span>
                       )}
                     </div>
                     
-                    <h3 className="text-xl font-bold text-slate-800 mb-2 line-clamp-2">{project.name}</h3>
+                    <h3 className="text-xl font-bold text-slate-800 dark:text-slate-100 mb-2 line-clamp-2">{project.name}</h3>
+                    
+                    {/* Exibição das Tags */}
+                    {project.tags && project.tags.length > 0 && (
+                      <div className="flex flex-wrap gap-2 mb-3">
+                        {project.tags.slice(0, 3).map((tag, idx) => (
+                          <span key={idx} className="bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 text-[10px] font-bold px-2 py-1 rounded-md uppercase flex items-center gap-1">
+                            <Tag size={10} /> {tag}
+                          </span>
+                        ))}
+                        {project.tags.length > 3 && (
+                          <span className="bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 text-[10px] font-bold px-2 py-1 rounded-md">+{project.tags.length - 3}</span>
+                        )}
+                      </div>
+                    )}
                     
                     <div className="mt-4">
-                      <div className="flex justify-between text-xs text-slate-500 mb-1 font-medium">
+                      <div className="flex justify-between text-xs text-slate-500 dark:text-slate-400 mb-1 font-medium">
                         <span>Progresso Atual</span>
                         <span>{progressPercent}%</span>
                       </div>
-                      <div className="w-full bg-slate-100 rounded-full h-2">
+                      <div className="w-full bg-slate-100 dark:bg-slate-700 rounded-full h-2">
                         <div className="bg-emerald-500 h-2 rounded-full transition-all" style={{ width: `${progressPercent}%` }}></div>
                       </div>
                     </div>
 
                     {completionsCount > 0 && (
-                      <div className="mt-4 bg-slate-50 p-3 rounded-xl flex items-center justify-between border border-slate-100">
+                      <div className="mt-4 bg-slate-50 dark:bg-slate-800/50 p-3 rounded-xl flex items-center justify-between border border-slate-100 dark:border-slate-700">
                         <div className="flex flex-col">
-                          <span className="text-xs text-slate-400 font-bold uppercase">Última avaliação</span>
+                          <span className="text-xs text-slate-400 dark:text-slate-500 font-bold uppercase">Última avaliação</span>
                           <div className="flex items-center gap-1 text-amber-400 mt-1">
                             {[1,2,3,4,5].map(star => (
-                              <Star key={star} size={14} fill={star <= project.history[0].rating ? "currentColor" : "none"} className={star <= project.history[0].rating ? "text-amber-400" : "text-slate-300"} />
+                              <Star key={star} size={14} fill={star <= project.history[0].rating ? "currentColor" : "none"} className={star <= project.history[0].rating ? "text-amber-400" : "text-slate-300 dark:text-slate-600"} />
                             ))}
                           </div>
                         </div>
-                        <span className="text-xs font-bold px-2 py-1 rounded bg-slate-200 text-slate-700">
+                        <span className="text-xs font-bold px-2 py-1 rounded bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300">
                           {project.history[0].difficulty}
                         </span>
                       </div>
@@ -528,14 +602,14 @@ function BoardScreen({ projects, user, onOpen, onNew, onDelete }) {
 
         {projectToDelete && (
           <div className="fixed inset-0 bg-slate-900/60 z-[100] flex items-center justify-center p-4">
-            <div className="bg-white rounded-2xl p-6 max-w-sm w-full shadow-2xl animate-in zoom-in-95">
-              <div className="w-16 h-16 bg-red-100 text-red-600 rounded-full flex items-center justify-center mx-auto mb-4">
+            <div className="bg-white dark:bg-slate-800 rounded-2xl p-6 max-w-sm w-full shadow-2xl animate-in zoom-in-95 border border-slate-200 dark:border-slate-700">
+              <div className="w-16 h-16 bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 rounded-full flex items-center justify-center mx-auto mb-4">
                 <Trash2 size={32} />
               </div>
-              <h3 className="text-xl font-bold mb-2 text-slate-800 text-center">Excluir Receita?</h3>
-              <p className="text-slate-600 mb-6 text-center">Tem certeza que deseja excluir a receita <b>"{projectToDelete.name}"</b> da biblioteca? Esta ação não pode ser desfeita na nuvem.</p>
+              <h3 className="text-xl font-bold mb-2 text-slate-800 dark:text-slate-100 text-center">Excluir Receita?</h3>
+              <p className="text-slate-600 dark:text-slate-400 mb-6 text-center">Tem certeza que deseja excluir a receita <b>"{projectToDelete.name}"</b> da biblioteca? Esta ação não pode ser desfeita na nuvem.</p>
               <div className="flex gap-3 justify-center">
-                <button onClick={() => setProjectToDelete(null)} className="flex-1 py-3 bg-slate-100 hover:bg-slate-200 rounded-xl font-bold text-slate-700 transition">Cancelar</button>
+                <button onClick={() => setProjectToDelete(null)} className="flex-1 py-3 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 rounded-xl font-bold text-slate-700 dark:text-slate-200 transition">Cancelar</button>
                 <button onClick={() => { onDelete(projectToDelete.id); setProjectToDelete(null); }} className="flex-1 py-3 bg-red-500 hover:bg-red-600 text-white rounded-xl font-bold transition">Sim, Excluir</button>
               </div>
             </div>
@@ -556,23 +630,23 @@ function NewProjectScreen({ onGenerateText, onSearchWeb, onCancel }) {
   const [showAlternative, setShowAlternative] = useState(false);
 
   return (
-    <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
-      <div className="max-w-2xl w-full bg-white rounded-3xl shadow-xl overflow-hidden mt-8 mb-8 relative">
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-900 flex items-center justify-center p-4 transition-colors">
+      <div className="max-w-2xl w-full bg-white dark:bg-slate-800 rounded-3xl shadow-xl overflow-hidden mt-8 mb-8 relative border border-slate-200 dark:border-slate-700">
         <button onClick={onCancel} className="absolute top-4 left-4 text-white hover:bg-white/20 p-2 rounded-lg transition z-10 flex items-center text-sm font-medium">
           <ChevronRight size={18} className="rotate-180" /> Cancelar
         </button>
 
-        <div className="bg-emerald-600 p-8 pt-16 text-center text-white relative">
+        <div className="bg-emerald-600 dark:bg-emerald-700 p-8 pt-16 text-center text-white relative">
           <div className="flex justify-center mb-4">
             {tab === 'search' ? <Globe className="w-16 h-16 opacity-90" /> : <FileText className="w-16 h-16 opacity-90" />}
           </div>
           <h1 className="text-3xl font-extrabold mb-2">Importar Receita</h1>
           
-          <div className="flex justify-center mt-6 bg-emerald-700/50 p-1 rounded-xl max-w-sm mx-auto">
-            <button onClick={() => setTab('search')} className={`flex-1 py-2 rounded-lg text-sm font-bold transition ${tab === 'search' ? 'bg-white text-emerald-700 shadow' : 'text-emerald-100 hover:text-white'}`}>
+          <div className="flex justify-center mt-6 bg-emerald-700/50 dark:bg-emerald-800/50 p-1 rounded-xl max-w-sm mx-auto">
+            <button onClick={() => setTab('search')} className={`flex-1 py-2 rounded-lg text-sm font-bold transition ${tab === 'search' ? 'bg-white dark:bg-slate-800 text-emerald-700 dark:text-emerald-400 shadow' : 'text-emerald-100 hover:text-white'}`}>
               Procurar na Web
             </button>
-            <button onClick={() => setTab('text')} className={`flex-1 py-2 rounded-lg text-sm font-bold transition ${tab === 'text' ? 'bg-white text-emerald-700 shadow' : 'text-emerald-100 hover:text-white'}`}>
+            <button onClick={() => setTab('text')} className={`flex-1 py-2 rounded-lg text-sm font-bold transition ${tab === 'text' ? 'bg-white dark:bg-slate-800 text-emerald-700 dark:text-emerald-400 shadow' : 'text-emerald-100 hover:text-white'}`}>
               Colar Texto
             </button>
           </div>
@@ -582,15 +656,15 @@ function NewProjectScreen({ onGenerateText, onSearchWeb, onCancel }) {
           
           {tab === 'search' ? (
             <div className="animate-in fade-in">
-              <h3 className="font-bold text-slate-800 mb-2">O que você quer crochetar hoje?</h3>
-              <p className="text-sm text-slate-500 mb-6">Nós buscaremos receitas passo-a-passo reais na internet para você escolher.</p>
+              <h3 className="font-bold text-slate-800 dark:text-slate-100 mb-2">O que você quer crochetar hoje?</h3>
+              <p className="text-sm text-slate-500 dark:text-slate-400 mb-6">Nós buscaremos receitas passo-a-passo reais na internet para você escolher.</p>
               
               <input
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Ex: Polvo amigurumi, Urso de crochê..."
-                className="w-full p-4 border-2 border-slate-200 rounded-xl mb-6 text-lg text-slate-800 focus:border-emerald-500 outline-none shadow-inner"
+                className="w-full p-4 border-2 border-slate-200 dark:border-slate-700 rounded-xl mb-6 text-lg text-slate-800 dark:text-slate-100 bg-white dark:bg-slate-900 focus:border-emerald-500 outline-none shadow-inner"
               />
 
               <button
@@ -603,29 +677,29 @@ function NewProjectScreen({ onGenerateText, onSearchWeb, onCancel }) {
             </div>
           ) : (
             <div className="animate-in fade-in">
-              <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 mb-6">
-                <h3 className="font-bold text-slate-800 mb-3 flex items-center gap-2">
+              <div className="bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl p-4 mb-6">
+                <h3 className="font-bold text-slate-800 dark:text-slate-100 mb-3 flex items-center gap-2">
                   <AlertCircle className="text-amber-500" size={20} /> Obter a transcrição do YouTube
                 </h3>
                 
                 <div className="flex flex-col gap-2">
                   <button 
                     onClick={() => setShowAlternative(!showAlternative)}
-                    className="text-sm font-bold text-slate-700 bg-white border border-slate-200 p-3 rounded-lg hover:bg-slate-50 flex justify-between items-center transition shadow-sm border-l-4 border-l-emerald-500"
+                    className="text-sm font-bold text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 p-3 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700 flex justify-between items-center transition shadow-sm border-l-4 border-l-emerald-500"
                   >
-                    <span className="flex items-center gap-2"><LinkIcon className="text-emerald-600" size={18}/> Usar Extrator de Texto</span>
+                    <span className="flex items-center gap-2"><LinkIcon className="text-emerald-600 dark:text-emerald-400" size={18}/> Usar Extrator de Texto</span>
                     <ChevronRight size={16} className={`transform transition-transform ${showAlternative ? 'rotate-90' : ''}`} />
                   </button>
 
                   {showAlternative && (
-                    <div className="bg-emerald-50 border border-emerald-100 p-4 rounded-lg text-sm text-slate-800">
+                    <div className="bg-emerald-50 dark:bg-emerald-900/30 border border-emerald-100 dark:border-emerald-800/50 p-4 rounded-lg text-sm text-slate-800 dark:text-slate-200">
                       <p className="mb-3">Use o Tactiq para extrair o texto completo do vídeo através do link:</p>
                       <div className="flex flex-col gap-2 mb-3">
-                        <a href="https://tactiq.io/pt-br/ferramentas/transcricao-do-youtube" target="_blank" rel="noreferrer" className="flex items-center gap-2 bg-white p-3 rounded-lg border border-emerald-200 hover:border-emerald-500 text-emerald-700 font-bold transition shadow-sm">
+                        <a href="https://tactiq.io/pt-br/ferramentas/transcricao-do-youtube" target="_blank" rel="noreferrer" className="flex items-center gap-2 bg-white dark:bg-slate-800 p-3 rounded-lg border border-emerald-200 dark:border-emerald-700 hover:border-emerald-500 text-emerald-700 dark:text-emerald-400 font-bold transition shadow-sm">
                           <ExternalLink size={18} /> Acessar Tactiq.io
                         </a>
                       </div>
-                      <ol className="list-decimal pl-5 space-y-2 mt-4 text-slate-600">
+                      <ol className="list-decimal pl-5 space-y-2 mt-4 text-slate-600 dark:text-slate-400">
                         <li>Copie o link do vídeo no YouTube.</li>
                         <li>Abra o site acima e cole o link.</li>
                         <li>Copie todo o texto gerado e cole na caixa abaixo.</li>
@@ -639,7 +713,7 @@ function NewProjectScreen({ onGenerateText, onSearchWeb, onCancel }) {
                 value={inputValue}
                 onChange={(e) => setInputValue(e.target.value)}
                 placeholder="Cole aqui a transcrição gerada pelo Tactiq, o texto do PDF ou da internet..."
-                className="w-full h-40 p-4 border-2 border-slate-200 rounded-xl focus:border-emerald-500 focus:ring-0 outline-none resize-none mb-6 text-slate-700 placeholder-slate-400 font-mono text-sm leading-relaxed shadow-inner"
+                className="w-full h-40 p-4 border-2 border-slate-200 dark:border-slate-700 rounded-xl focus:border-emerald-500 focus:ring-0 outline-none resize-none mb-6 text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-900 placeholder-slate-400 font-mono text-sm leading-relaxed shadow-inner"
               />
 
               <button
@@ -662,9 +736,9 @@ function NewProjectScreen({ onGenerateText, onSearchWeb, onCancel }) {
 // ==========================================
 function SearchResultsScreen({ results, onSelect, onCancel }) {
   return (
-    <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
-      <div className="max-w-3xl w-full bg-white rounded-3xl shadow-xl overflow-hidden mt-8 mb-8">
-        <div className="bg-emerald-600 p-6 flex items-center gap-4 text-white">
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-900 flex items-center justify-center p-4 transition-colors">
+      <div className="max-w-3xl w-full bg-white dark:bg-slate-800 rounded-3xl shadow-xl overflow-hidden mt-8 mb-8 border border-slate-200 dark:border-slate-700">
+        <div className="bg-emerald-600 dark:bg-emerald-700 p-6 flex items-center gap-4 text-white">
           <button onClick={onCancel} className="p-2 hover:bg-white/20 rounded-lg transition">
             <ChevronRight size={24} className="rotate-180" />
           </button>
@@ -672,17 +746,17 @@ function SearchResultsScreen({ results, onSelect, onCancel }) {
         </div>
         
         <div className="p-6">
-          <p className="text-slate-600 mb-6">Encontramos estas opções reais na internet. Escolha uma para transformarmos no formato interativo:</p>
+          <p className="text-slate-600 dark:text-slate-400 mb-6">Encontramos estas opções reais na internet. Escolha uma para transformarmos no formato interativo:</p>
           
           <div className="space-y-4">
             {results.map((res, i) => (
-              <div key={i} className="border-2 border-slate-200 rounded-2xl p-5 hover:border-emerald-500 transition-colors bg-white shadow-sm flex flex-col md:flex-row gap-4 justify-between items-start md:items-center">
+              <div key={i} className="border-2 border-slate-200 dark:border-slate-700 rounded-2xl p-5 hover:border-emerald-500 transition-colors bg-white dark:bg-slate-800 shadow-sm flex flex-col md:flex-row gap-4 justify-between items-start md:items-center">
                 <div className="flex-1">
                   <div className="flex items-center gap-2 mb-1">
-                    <span className="bg-emerald-100 text-emerald-800 text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wider">{res.source}</span>
+                    <span className="bg-emerald-100 dark:bg-emerald-900/50 text-emerald-800 dark:text-emerald-300 text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wider">{res.source}</span>
                   </div>
-                  <h3 className="text-lg font-bold text-slate-800 mb-1">{res.title}</h3>
-                  <p className="text-sm text-slate-500 line-clamp-2">{res.description}</p>
+                  <h3 className="text-lg font-bold text-slate-800 dark:text-slate-100 mb-1">{res.title}</h3>
+                  <p className="text-sm text-slate-500 dark:text-slate-400 line-clamp-2">{res.description}</p>
                 </div>
                 
                 <div className="flex flex-col sm:flex-row gap-2 w-full md:w-auto mt-2 md:mt-0">
@@ -690,14 +764,14 @@ function SearchResultsScreen({ results, onSelect, onCancel }) {
                     href={res.url}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="w-full sm:w-auto text-slate-600 bg-slate-100 font-bold px-4 py-3 rounded-xl hover:bg-slate-200 transition shadow-sm flex items-center justify-center gap-2"
+                    className="w-full sm:w-auto text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-700 font-bold px-4 py-3 rounded-xl hover:bg-slate-200 dark:hover:bg-slate-600 transition shadow-sm flex items-center justify-center gap-2"
                     title="Abrir a página original em nova aba"
                   >
                     <ExternalLink size={16}/> Ver Original
                   </a>
                   <button 
                     onClick={() => onSelect(res.url)}
-                    className="w-full sm:w-auto whitespace-nowrap bg-emerald-50 text-emerald-700 font-bold px-6 py-3 rounded-xl hover:bg-emerald-600 hover:text-white transition shadow-sm border border-emerald-200 hover:border-emerald-600 flex items-center justify-center gap-2"
+                    className="w-full sm:w-auto whitespace-nowrap bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 font-bold px-6 py-3 rounded-xl hover:bg-emerald-600 hover:text-white transition shadow-sm border border-emerald-200 dark:border-emerald-800 flex items-center justify-center gap-2"
                   >
                     Criar Tutorial <Play size={16}/>
                   </button>
@@ -717,7 +791,7 @@ function SearchResultsScreen({ results, onSelect, onCancel }) {
 // ==========================================
 function LoadingScreen({ message }) {
   return (
-    <div className="min-h-screen bg-emerald-600 flex flex-col items-center justify-center p-4 text-white">
+    <div className="min-h-screen bg-emerald-600 dark:bg-emerald-800 flex flex-col items-center justify-center p-4 text-white transition-colors">
       <Loader2 className="w-20 h-20 animate-spin text-emerald-200 mb-8" />
       <h2 className="text-2xl font-bold mb-2 animate-pulse text-center">{message}</h2>
     </div>
@@ -726,12 +800,12 @@ function LoadingScreen({ message }) {
 
 function ErrorScreen({ message, onRetry, onCancel }) {
   return (
-    <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
-      <div className="max-w-md w-full bg-white rounded-3xl shadow-xl p-8 text-center border-t-8 border-red-500">
-        <h2 className="text-2xl font-bold text-slate-800 mb-4">Erro na operação</h2>
-        <p className="text-slate-600 mb-8">{message}</p>
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-900 flex items-center justify-center p-4 transition-colors">
+      <div className="max-w-md w-full bg-white dark:bg-slate-800 rounded-3xl shadow-xl p-8 text-center border-t-8 border-red-500">
+        <h2 className="text-2xl font-bold text-slate-800 dark:text-slate-100 mb-4">Erro na operação</h2>
+        <p className="text-slate-600 dark:text-slate-400 mb-8">{message}</p>
         <div className="flex gap-3">
-          <button onClick={onCancel} className="flex-1 py-3 bg-slate-100 text-slate-600 font-bold rounded-xl hover:bg-slate-200">Voltar</button>
+          <button onClick={onCancel} className="flex-1 py-3 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 font-bold rounded-xl hover:bg-slate-200 dark:hover:bg-slate-600">Voltar</button>
           <button onClick={onRetry} className="flex-1 py-3 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700">Tentar Novamente</button>
         </div>
       </div>
@@ -756,6 +830,8 @@ function Workspace({ project, onUpdateProject, onSaveNewProject, onDeleteProject
 
   const [timerRunning, setTimerRunning] = useState(false);
   const [localTimeSpent, setLocalTimeSpent] = useState(project.timeSpent || 0);
+
+  const [tagInput, setTagInput] = useState('');
 
   useEffect(() => {
     let interval;
@@ -798,6 +874,19 @@ function Workspace({ project, onUpdateProject, onSaveNewProject, onDeleteProject
     setTimerRunning(false);
   };
 
+  const handleAddTag = () => {
+    if (tagInput.trim() && !project.tags?.includes(tagInput.trim())) {
+      const updatedTags = [...(project.tags || []), tagInput.trim().toLowerCase()];
+      onUpdateProject({ ...project, tags: updatedTags });
+      setTagInput('');
+    }
+  };
+
+  const handleRemoveTag = (tagToRemove) => {
+    const updatedTags = project.tags.filter(t => t !== tagToRemove);
+    onUpdateProject({ ...project, tags: updatedTags });
+  };
+
   const isSectionComplete = (section) => section.type === 'pattern' && (project.progress[section.id] || 0) >= section.steps.length;
 
   const getSafeIcon = (iconStr) => {
@@ -827,14 +916,14 @@ function Workspace({ project, onUpdateProject, onSaveNewProject, onDeleteProject
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 font-sans text-slate-800">
-      <header className="bg-emerald-600 text-white sticky top-0 z-40 shadow-md">
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-900 font-sans text-slate-800 dark:text-slate-100 transition-colors">
+      <header className="bg-emerald-600 dark:bg-emerald-800 text-white sticky top-0 z-40 shadow-md">
         <div className="flex items-center justify-between p-4 max-w-6xl mx-auto">
           <div className="flex items-center gap-2 sm:gap-4">
-            <button onClick={() => setSidebarOpen(true)} className="p-2 hover:bg-emerald-700 rounded-lg lg:hidden">
+            <button onClick={() => setSidebarOpen(true)} className="p-2 hover:bg-emerald-700 dark:hover:bg-emerald-900 rounded-lg lg:hidden">
               <Menu size={24} />
             </button>
-            <button onClick={() => { setTimerRunning(false); onClose(); }} className="p-2 hover:bg-emerald-700 rounded-lg hidden sm:block" title="Voltar ao Painel">
+            <button onClick={() => { setTimerRunning(false); onClose(); }} className="p-2 hover:bg-emerald-700 dark:hover:bg-emerald-900 rounded-lg hidden sm:block" title="Voltar ao Painel">
               <Home size={20} />
             </button>
             <div className="flex items-center gap-2">
@@ -855,7 +944,7 @@ function Workspace({ project, onUpdateProject, onSaveNewProject, onDeleteProject
           </div>
           
           <div className="flex items-center gap-3 sm:gap-6">
-            <div className="flex items-center bg-emerald-800/50 rounded-full pl-3 pr-1 py-1 shadow-inner border border-emerald-500/30">
+            <div className="flex items-center bg-emerald-800/50 dark:bg-emerald-900/50 rounded-full pl-3 pr-1 py-1 shadow-inner border border-emerald-500/30">
               <Clock size={16} className={`mr-2 hidden sm:block ${timerRunning ? 'text-emerald-300 animate-pulse' : 'text-emerald-200'}`} />
               <span className="font-mono font-bold text-sm sm:text-base mr-3 tracking-wider">
                 {formatTime(localTimeSpent)}
@@ -870,7 +959,7 @@ function Workspace({ project, onUpdateProject, onSaveNewProject, onDeleteProject
 
             <div className="hidden sm:flex items-center gap-2">
               {project.isTemp ? (
-                <button onClick={() => setShowSaveModal(true)} className="bg-white text-emerald-700 text-sm font-bold px-4 py-2 rounded-lg hover:bg-emerald-50 transition flex items-center gap-2 shadow-sm">
+                <button onClick={() => setShowSaveModal(true)} className="bg-white dark:bg-slate-800 text-emerald-700 dark:text-emerald-400 text-sm font-bold px-4 py-2 rounded-lg hover:bg-emerald-50 dark:hover:bg-slate-700 transition flex items-center gap-2 shadow-sm border border-transparent dark:border-slate-600">
                   <Save size={16}/> Salvar na Biblioteca
                 </button>
               ) : (
@@ -888,28 +977,50 @@ function Workspace({ project, onUpdateProject, onSaveNewProject, onDeleteProject
         
         <aside className={`
           fixed lg:sticky top-0 left-0 h-screen lg:h-[calc(100vh-64px)] 
-          w-72 bg-white shadow-xl lg:shadow-none lg:border-r border-slate-200
+          w-72 bg-white dark:bg-slate-800 shadow-xl lg:shadow-none lg:border-r border-slate-200 dark:border-slate-700
           z-[50] transform transition-transform duration-300
           ${sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
           overflow-y-auto pb-20 flex flex-col
         `}>
-          <div className="p-4 lg:hidden flex justify-between items-center border-b border-slate-100 bg-emerald-50">
-            <button onClick={() => { setTimerRunning(false); onClose(); }} className="text-emerald-700 font-bold flex items-center gap-1 text-sm"><Home size={16}/> Sair</button>
-            <button onClick={() => setSidebarOpen(false)} className="text-emerald-700 p-1"><X size={20} /></button>
+          <div className="p-4 lg:hidden flex justify-between items-center border-b border-slate-100 dark:border-slate-700 bg-emerald-50 dark:bg-slate-900">
+            <button onClick={() => { setTimerRunning(false); onClose(); }} className="text-emerald-700 dark:text-emerald-400 font-bold flex items-center gap-1 text-sm"><Home size={16}/> Sair</button>
+            <button onClick={() => setSidebarOpen(false)} className="text-emerald-700 dark:text-emerald-400 p-1"><X size={20} /></button>
           </div>
 
-          <div className="p-4 border-b border-slate-100 lg:hidden flex flex-col gap-2">
+          <div className="p-4 border-b border-slate-100 dark:border-slate-700 lg:hidden flex flex-col gap-2">
             {project.isTemp ? (
               <button onClick={() => { setSidebarOpen(false); setShowSaveModal(true); }} className="w-full bg-emerald-600 text-white font-bold py-3 rounded-xl flex items-center justify-center gap-2">
                 <Save size={18}/> Salvar na Biblioteca
               </button>
             ) : (
-              <button onClick={() => { setSidebarOpen(false); setShowCompleteModal(true); }} className="w-full bg-emerald-100 text-emerald-800 font-bold py-3 rounded-xl flex items-center justify-center gap-2">
+              <button onClick={() => { setSidebarOpen(false); setShowCompleteModal(true); }} className="w-full bg-emerald-100 dark:bg-emerald-900/50 text-emerald-800 dark:text-emerald-300 font-bold py-3 rounded-xl flex items-center justify-center gap-2">
                 <Award size={18}/> Concluir Peça
               </button>
             )}
           </div>
           
+          <div className="p-4 border-b border-slate-100 dark:border-slate-700">
+             <div className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Tags da Receita</div>
+             <div className="flex flex-wrap gap-2 mb-3">
+               {project.tags?.map((tag, idx) => (
+                 <span key={idx} className="bg-emerald-100 dark:bg-emerald-900/50 text-emerald-800 dark:text-emerald-300 text-xs font-bold px-2 py-1 rounded flex items-center gap-1">
+                   {tag} <button onClick={() => handleRemoveTag(tag)} className="hover:text-red-500 ml-1"><X size={12}/></button>
+                 </span>
+               ))}
+             </div>
+             <div className="flex gap-2">
+               <input 
+                 type="text" 
+                 value={tagInput}
+                 onChange={(e) => setTagInput(e.target.value)}
+                 onKeyDown={(e) => e.key === 'Enter' && handleAddTag()}
+                 placeholder="Nova tag..."
+                 className="flex-1 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 text-sm rounded-lg px-3 py-2 outline-none focus:border-emerald-500"
+               />
+               <button onClick={handleAddTag} className="bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 p-2 rounded-lg transition"><Plus size={16}/></button>
+             </div>
+          </div>
+
           <div className="p-4 flex flex-col gap-2 flex-1">
             <div className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 mt-2">Índice da Receita</div>
             {PATTERN_SECTIONS.map((section) => {
@@ -920,7 +1031,7 @@ function Workspace({ project, onUpdateProject, onSaveNewProject, onDeleteProject
                   key={section.id}
                   onClick={() => { setActiveSectionId(section.id); setSidebarOpen(false); }}
                   className={`flex items-center w-full text-left p-3 rounded-xl transition-all
-                    ${isActive ? 'bg-emerald-100 text-emerald-900 font-bold' : 'text-slate-600 hover:bg-slate-50'}`}
+                    ${isActive ? 'bg-emerald-100 dark:bg-emerald-900/50 text-emerald-900 dark:text-emerald-100 font-bold' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700/50'}`}
                 >
                   <span className="text-xl w-8 text-center flex-shrink-0">{getSafeIcon(section.icon)}</span>
                   <span className="flex-1 truncate pr-2">{section.title}</span>
@@ -930,15 +1041,15 @@ function Workspace({ project, onUpdateProject, onSaveNewProject, onDeleteProject
             })}
           </div>
 
-          <div className="p-4 border-t border-slate-100 flex flex-col gap-2">
+          <div className="p-4 border-t border-slate-100 dark:border-slate-700 flex flex-col gap-2">
              {project.history?.length > 0 && (
-               <button onClick={() => {setSidebarOpen(false); setShowHistoryModal(true);}} className="w-full flex items-center justify-between p-3 text-slate-700 hover:bg-slate-50 rounded-xl transition-colors border border-slate-200">
-                 <span className="flex items-center gap-2 font-bold"><History size={16} className="text-emerald-600"/> Histórico</span>
-                 <span className="bg-slate-200 text-xs px-2 py-0.5 rounded-full font-bold">{project.history.length}</span>
+               <button onClick={() => {setSidebarOpen(false); setShowHistoryModal(true);}} className="w-full flex items-center justify-between p-3 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 rounded-xl transition-colors border border-slate-200 dark:border-slate-600">
+                 <span className="flex items-center gap-2 font-bold"><History size={16} className="text-emerald-600 dark:text-emerald-400"/> Histórico</span>
+                 <span className="bg-slate-200 dark:bg-slate-700 text-xs px-2 py-0.5 rounded-full font-bold">{project.history.length}</span>
                </button>
              )}
 
-             <button onClick={() => {setSidebarOpen(false); setShowResetConfirm(true);}} className="w-full flex items-center p-3 text-amber-600 hover:bg-amber-50 rounded-xl transition-colors font-medium">
+             <button onClick={() => {setSidebarOpen(false); setShowResetConfirm(true);}} className="w-full flex items-center p-3 text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-900/20 rounded-xl transition-colors font-medium">
               <RotateCcw size={16} className="mr-2" /> Reiniciar Progresso
             </button>
 
@@ -946,7 +1057,7 @@ function Workspace({ project, onUpdateProject, onSaveNewProject, onDeleteProject
               <button onClick={() => {
                 setSidebarOpen(false);
                 setShowDeleteConfirm(true);
-              }} className="w-full flex items-center p-3 text-red-500 hover:bg-red-50 rounded-xl transition-colors font-medium mt-2">
+              }} className="w-full flex items-center p-3 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-xl transition-colors font-medium mt-2">
                 <Trash2 size={16} className="mr-2" /> Excluir Receita
               </button>
             )}
@@ -956,16 +1067,32 @@ function Workspace({ project, onUpdateProject, onSaveNewProject, onDeleteProject
         <main className="flex-1 p-4 sm:p-8 min-h-[calc(100vh-64px)] pb-40">
           <div className="max-w-2xl mx-auto">
             <div className="mb-8">
-              <h2 className="text-3xl font-extrabold text-slate-800 flex items-center gap-3">
+              <h2 className="text-3xl font-extrabold text-slate-800 dark:text-slate-100 flex items-center gap-3">
                 {getSafeIcon(activeSection.icon)} {activeSection.title}
               </h2>
             </div>
 
+            {/* SEÇÃO INTRO: Onde a imagem final renderizada pelo Pollinations via prompt do Gemini aparece */}
             {activeSection.type === 'text' && (
-              <div className="bg-white p-6 sm:p-8 rounded-2xl shadow-sm border border-slate-200 space-y-4">
+              <div className="bg-white dark:bg-slate-800 p-6 sm:p-8 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 space-y-4">
+                
+                {activeSection.id === 'intro' && project.data.imagePrompt && (
+                  <div className="mb-8 rounded-xl overflow-hidden border-2 border-slate-100 dark:border-slate-700 shadow-inner bg-slate-50 dark:bg-slate-900">
+                    <img 
+                      src={`https://image.pollinations.ai/prompt/${encodeURIComponent(project.data.imagePrompt)}?width=800&height=500&nologo=true`} 
+                      alt="Prévia do Projeto" 
+                      className="w-full h-auto object-cover max-h-[400px]"
+                      loading="lazy"
+                    />
+                    <div className="p-3 text-center text-xs text-slate-400 font-medium bg-white dark:bg-slate-800">
+                      Prévia gerada via IA com base na receita
+                    </div>
+                  </div>
+                )}
+
                 {activeSection.steps?.map((step, idx) => (
-                  <div key={idx} className="bg-slate-50 p-4 rounded-xl border border-slate-100">
-                    <p className="text-slate-700 whitespace-pre-line leading-relaxed">{step.text}</p>
+                  <div key={idx} className="bg-slate-50 dark:bg-slate-900 p-4 rounded-xl border border-slate-100 dark:border-slate-700">
+                    <p className="text-slate-700 dark:text-slate-300 whitespace-pre-line leading-relaxed">{step.text}</p>
                   </div>
                 ))}
                 {PATTERN_SECTIONS.length > 1 && (
@@ -979,11 +1106,11 @@ function Workspace({ project, onUpdateProject, onSaveNewProject, onDeleteProject
             {activeSection.type === 'pattern' && (
               <div className="space-y-4">
                 {isSectionComplete(activeSection) ? (
-                  <div className="bg-emerald-50 border border-emerald-200 p-8 rounded-3xl text-center shadow-inner">
+                  <div className="bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800 p-8 rounded-3xl text-center shadow-inner">
                     <Check size={48} className="mx-auto text-emerald-500 mb-4" />
-                    <h3 className="text-2xl font-bold text-emerald-900 mb-6">Parte Concluída!</h3>
+                    <h3 className="text-2xl font-bold text-emerald-900 dark:text-emerald-100 mb-6">Parte Concluída!</h3>
                     <div className="flex gap-3 justify-center flex-wrap">
-                      <button onClick={() => handleUndoStep(activeSection.steps.length - 1)} className="px-6 py-3 bg-white text-slate-700 rounded-xl font-bold shadow-sm border border-slate-200 hover:bg-slate-50 transition">
+                      <button onClick={() => handleUndoStep(activeSection.steps.length - 1)} className="px-6 py-3 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 rounded-xl font-bold shadow-sm border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 transition">
                         Desfazer última
                       </button>
                       {PATTERN_SECTIONS.findIndex(s => s.id === activeSectionId) < PATTERN_SECTIONS.length - 1 && (
@@ -998,11 +1125,11 @@ function Workspace({ project, onUpdateProject, onSaveNewProject, onDeleteProject
                     {activeSection.steps?.map((step, idx) => {
                       if (idx < currentStepIndex) {
                         return (
-                          <div key={idx} className="bg-slate-100 p-4 rounded-xl flex items-center opacity-70 group hover:opacity-100 transition">
+                          <div key={idx} className="bg-slate-100 dark:bg-slate-800/50 p-4 rounded-xl flex items-center opacity-70 group hover:opacity-100 transition border border-transparent dark:border-slate-700">
                             <Check size={20} className="text-emerald-500 mr-4 flex-shrink-0" />
                             <div className="flex-1">
                               <span className="text-xs font-bold text-slate-400 uppercase">{step.r}</span>
-                              <p className="text-slate-500 line-through">{step.text}</p>
+                              <p className="text-slate-500 dark:text-slate-400 line-through">{step.text}</p>
                             </div>
                             <button onClick={() => handleUndoStep(idx)} className="text-slate-400 hover:text-emerald-600 p-2" title="Desfazer"><RotateCcw size={18}/></button>
                           </div>
@@ -1012,10 +1139,10 @@ function Workspace({ project, onUpdateProject, onSaveNewProject, onDeleteProject
                       if (idx === currentStepIndex) {
                         const isInfo = step.type === 'info';
                         return (
-                          <div key={idx} className={`border-2 rounded-2xl p-6 shadow-lg transform transition-all ${isInfo ? 'bg-amber-50 border-amber-300' : 'bg-white border-emerald-500'}`}>
-                            <div className="text-emerald-600 font-bold text-sm mb-2 uppercase">{step.r || 'Passo'}</div>
-                            <div className="text-2xl font-extrabold mb-4 text-slate-800 leading-tight">{step.text}</div>
-                            {step.pts && <div className="inline-block px-3 py-1 bg-slate-100 rounded-lg text-slate-600 font-bold mb-6 border border-slate-200 shadow-sm">Total final: {step.pts}</div>}
+                          <div key={idx} className={`border-2 rounded-2xl p-6 shadow-lg transform transition-all ${isInfo ? 'bg-amber-50 dark:bg-amber-900/20 border-amber-300 dark:border-amber-700' : 'bg-white dark:bg-slate-800 border-emerald-500'}`}>
+                            <div className="text-emerald-600 dark:text-emerald-400 font-bold text-sm mb-2 uppercase">{step.r || 'Passo'}</div>
+                            <div className="text-2xl font-extrabold mb-4 text-slate-800 dark:text-slate-100 leading-tight">{step.text}</div>
+                            {step.pts && <div className="inline-block px-3 py-1 bg-slate-100 dark:bg-slate-700 rounded-lg text-slate-600 dark:text-slate-300 font-bold mb-6 border border-slate-200 dark:border-slate-600 shadow-sm">Total final: {step.pts}</div>}
                             <button onClick={handleCompleteStep} className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-4 rounded-xl flex justify-center items-center gap-2 shadow-md transition">
                               <Check size={20} /> Concluído
                             </button>
@@ -1025,8 +1152,8 @@ function Workspace({ project, onUpdateProject, onSaveNewProject, onDeleteProject
 
                       if (idx > currentStepIndex && idx <= currentStepIndex + 2) {
                         return (
-                          <div key={idx} className="bg-white p-4 rounded-xl border border-slate-100 opacity-50 flex items-center blur-[0.5px]">
-                            <div className="w-8 h-8 rounded-full bg-slate-100 text-slate-400 flex items-center justify-center font-bold text-xs mr-4 flex-shrink-0">{step.r || '-'}</div>
+                          <div key={idx} className="bg-white dark:bg-slate-800 p-4 rounded-xl border border-slate-100 dark:border-slate-700 opacity-50 flex items-center blur-[0.5px]">
+                            <div className="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-700 text-slate-400 flex items-center justify-center font-bold text-xs mr-4 flex-shrink-0">{step.r || '-'}</div>
                             <p className="text-slate-400 line-clamp-2">{step.text}</p>
                           </div>
                         );
@@ -1038,8 +1165,8 @@ function Workspace({ project, onUpdateProject, onSaveNewProject, onDeleteProject
               </div>
             )}
 
-            <div className="mt-10 bg-amber-50/50 border border-amber-200 rounded-2xl p-6 shadow-sm">
-              <h3 className="text-amber-800 font-bold mb-3 flex items-center gap-2">
+            <div className="mt-10 bg-amber-50/50 dark:bg-amber-900/10 border border-amber-200 dark:border-amber-800/50 rounded-2xl p-6 shadow-sm">
+              <h3 className="text-amber-800 dark:text-amber-400 font-bold mb-3 flex items-center gap-2">
                 <MessageSquare size={18} /> Minhas Observações ({activeSection.title})
               </h3>
               <textarea
@@ -1049,7 +1176,7 @@ function Workspace({ project, onUpdateProject, onSaveNewProject, onDeleteProject
                   onUpdateProject({ ...project, notes: newNotes });
                 }}
                 placeholder="Adicione suas notas aqui (ex: mudei a cor da linha, usei agulha menor, pulei o ponto X...)"
-                className="w-full p-4 rounded-xl border border-amber-200 bg-white focus:border-amber-400 focus:ring-0 outline-none resize-none text-slate-700 placeholder-slate-400 min-h-[120px]"
+                className="w-full p-4 rounded-xl border border-amber-200 dark:border-amber-800/50 bg-white dark:bg-slate-800 focus:border-amber-400 focus:ring-0 outline-none resize-none text-slate-700 dark:text-slate-200 placeholder-slate-400 min-h-[120px]"
               />
             </div>
 
@@ -1058,34 +1185,34 @@ function Workspace({ project, onUpdateProject, onSaveNewProject, onDeleteProject
       </div>
 
       {activeSection.type === 'pattern' && !isSectionComplete(activeSection) && activeSection.steps[currentStepIndex]?.type !== 'info' && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-white rounded-full shadow-[0_10px_40px_rgba(0,0,0,0.15)] border border-slate-200 flex items-center p-2 z-30">
-          <button onClick={() => setStitchCount(s => Math.max(0, s-1))} className="w-12 h-12 flex items-center justify-center text-slate-400 hover:bg-slate-100 rounded-full transition"><Minus size={24} /></button>
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-white dark:bg-slate-800 rounded-full shadow-[0_10px_40px_rgba(0,0,0,0.15)] border border-slate-200 dark:border-slate-700 flex items-center p-2 z-30">
+          <button onClick={() => setStitchCount(s => Math.max(0, s-1))} className="w-12 h-12 flex items-center justify-center text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full transition"><Minus size={24} /></button>
           <div className="w-20 text-center flex flex-col items-center justify-center">
             <span className="text-xs font-bold text-slate-400 uppercase mb-[-4px]">Pontos</span>
-            <span className="font-black text-3xl text-emerald-600">{stitchCount}</span>
+            <span className="font-black text-3xl text-emerald-600 dark:text-emerald-400">{stitchCount}</span>
           </div>
-          <button onClick={() => setStitchCount(s => s+1)} className="w-12 h-12 flex items-center justify-center text-emerald-600 bg-emerald-50 hover:bg-emerald-100 rounded-full transition"><Plus size={24} /></button>
+          <button onClick={() => setStitchCount(s => s+1)} className="w-12 h-12 flex items-center justify-center text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/30 hover:bg-emerald-100 dark:hover:bg-emerald-800/50 rounded-full transition"><Plus size={24} /></button>
         </div>
       )}
 
       {showSaveModal && (
         <div className="fixed inset-0 bg-slate-900/60 z-[100] flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl p-8 max-w-sm w-full shadow-2xl animate-in zoom-in-95">
-            <div className="w-16 h-16 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto mb-6">
+          <div className="bg-white dark:bg-slate-800 rounded-3xl p-8 max-w-sm w-full shadow-2xl animate-in zoom-in-95 border border-slate-200 dark:border-slate-700">
+            <div className="w-16 h-16 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 rounded-full flex items-center justify-center mx-auto mb-6">
               <Save size={32} />
             </div>
-            <h2 className="text-2xl font-bold text-center text-slate-800 mb-2">Salvar Receita</h2>
-            <p className="text-center text-slate-500 mb-6">Dê um nome a esta receita para guardá-la na sua Biblioteca. Seu progresso será sincronizado com a nuvem.</p>
+            <h2 className="text-2xl font-bold text-center text-slate-800 dark:text-slate-100 mb-2">Salvar Receita</h2>
+            <p className="text-center text-slate-500 dark:text-slate-400 mb-6">Dê um nome a esta receita para guardá-la na sua Biblioteca. Seu progresso será sincronizado com a nuvem.</p>
             
             <input 
               type="text" 
               defaultValue={project.name}
               id="projectNameInput"
-              className="w-full p-4 border-2 border-slate-200 rounded-xl mb-6 text-center text-lg font-bold text-slate-800 focus:border-emerald-500 outline-none"
+              className="w-full p-4 border-2 border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 rounded-xl mb-6 text-center text-lg font-bold text-slate-800 dark:text-slate-100 focus:border-emerald-500 outline-none"
             />
 
             <div className="flex gap-3">
-              <button onClick={() => setShowSaveModal(false)} className="flex-1 py-3 bg-slate-100 text-slate-600 font-bold rounded-xl hover:bg-slate-200 transition">Cancelar</button>
+              <button onClick={() => setShowSaveModal(false)} className="flex-1 py-3 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-200 font-bold rounded-xl hover:bg-slate-200 dark:hover:bg-slate-600 transition">Cancelar</button>
               <button onClick={() => {
                 const name = document.getElementById('projectNameInput').value;
                 onSaveNewProject(name || 'Receita sem nome');
@@ -1098,21 +1225,21 @@ function Workspace({ project, onUpdateProject, onSaveNewProject, onDeleteProject
 
       {showRenameModal && (
         <div className="fixed inset-0 bg-slate-900/60 z-[100] flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl p-8 max-w-sm w-full shadow-2xl animate-in zoom-in-95">
-            <div className="w-16 h-16 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto mb-6">
+          <div className="bg-white dark:bg-slate-800 rounded-3xl p-8 max-w-sm w-full shadow-2xl animate-in zoom-in-95 border border-slate-200 dark:border-slate-700">
+            <div className="w-16 h-16 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 rounded-full flex items-center justify-center mx-auto mb-6">
               <Pencil size={32} />
             </div>
-            <h2 className="text-2xl font-bold text-center text-slate-800 mb-6">Renomear Receita</h2>
+            <h2 className="text-2xl font-bold text-center text-slate-800 dark:text-slate-100 mb-6">Renomear Receita</h2>
             
             <input 
               type="text" 
               defaultValue={project.name}
               id="renameProjectInput"
-              className="w-full p-4 border-2 border-slate-200 rounded-xl mb-6 text-center text-lg font-bold text-slate-800 focus:border-emerald-500 outline-none"
+              className="w-full p-4 border-2 border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 rounded-xl mb-6 text-center text-lg font-bold text-slate-800 dark:text-slate-100 focus:border-emerald-500 outline-none"
             />
 
             <div className="flex gap-3">
-              <button onClick={() => setShowRenameModal(false)} className="flex-1 py-3 bg-slate-100 text-slate-600 font-bold rounded-xl hover:bg-slate-200 transition">Cancelar</button>
+              <button onClick={() => setShowRenameModal(false)} className="flex-1 py-3 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-200 font-bold rounded-xl hover:bg-slate-200 dark:hover:bg-slate-600 transition">Cancelar</button>
               <button onClick={() => {
                 const newName = document.getElementById('renameProjectInput').value;
                 if(newName) {
@@ -1127,11 +1254,11 @@ function Workspace({ project, onUpdateProject, onSaveNewProject, onDeleteProject
 
       {showResetConfirm && (
         <div className="fixed inset-0 bg-slate-900/60 z-[100] flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl p-6 max-w-sm w-full shadow-2xl">
-            <h3 className="text-xl font-bold mb-2 text-slate-800">Reiniciar Receita?</h3>
-            <p className="text-slate-600 mb-6">Você tem certeza? Isso irá apagar todo o progresso e zerar o tempo atual para você começar do zero. O Histórico anterior será mantido.</p>
+          <div className="bg-white dark:bg-slate-800 rounded-2xl p-6 max-w-sm w-full shadow-2xl border border-slate-200 dark:border-slate-700">
+            <h3 className="text-xl font-bold mb-2 text-slate-800 dark:text-slate-100">Reiniciar Receita?</h3>
+            <p className="text-slate-600 dark:text-slate-400 mb-6">Você tem certeza? Isso irá apagar todo o progresso e zerar o tempo atual para você começar do zero. O Histórico anterior será mantido.</p>
             <div className="flex gap-3 justify-end">
-              <button onClick={() => setShowResetConfirm(false)} className="px-4 py-2 hover:bg-slate-100 rounded-lg font-medium text-slate-700">Cancelar</button>
+              <button onClick={() => setShowResetConfirm(false)} className="px-4 py-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg font-medium text-slate-700 dark:text-slate-200">Cancelar</button>
               <button onClick={resetProgress} className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-lg font-bold transition">Sim, Reiniciar</button>
             </div>
           </div>
@@ -1140,14 +1267,14 @@ function Workspace({ project, onUpdateProject, onSaveNewProject, onDeleteProject
 
       {showDeleteConfirm && (
         <div className="fixed inset-0 bg-slate-900/60 z-[100] flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl p-6 max-w-sm w-full shadow-2xl animate-in zoom-in-95">
-            <div className="w-16 h-16 bg-red-100 text-red-600 rounded-full flex items-center justify-center mx-auto mb-4">
+          <div className="bg-white dark:bg-slate-800 rounded-2xl p-6 max-w-sm w-full shadow-2xl animate-in zoom-in-95 border border-slate-200 dark:border-slate-700">
+            <div className="w-16 h-16 bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 rounded-full flex items-center justify-center mx-auto mb-4">
               <Trash2 size={32} />
             </div>
-            <h3 className="text-xl font-bold mb-2 text-slate-800 text-center">Excluir Receita?</h3>
-            <p className="text-slate-600 mb-6 text-center">Tem certeza que deseja EXCLUIR definitivamente esta receita? Esta ação não pode ser desfeita e será removida também da nuvem.</p>
+            <h3 className="text-xl font-bold mb-2 text-slate-800 dark:text-slate-100 text-center">Excluir Receita?</h3>
+            <p className="text-slate-600 dark:text-slate-400 mb-6 text-center">Tem certeza que deseja EXCLUIR definitivamente esta receita? Esta ação não pode ser desfeita e será removida também da nuvem.</p>
             <div className="flex gap-3 justify-center">
-              <button onClick={() => setShowDeleteConfirm(false)} className="flex-1 py-3 bg-slate-100 hover:bg-slate-200 rounded-xl font-bold text-slate-700 transition">Cancelar</button>
+              <button onClick={() => setShowDeleteConfirm(false)} className="flex-1 py-3 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 rounded-xl font-bold text-slate-700 dark:text-slate-200 transition">Cancelar</button>
               <button onClick={() => { setShowDeleteConfirm(false); onDeleteProject(project.id); }} className="flex-1 py-3 bg-red-500 hover:bg-red-600 text-white rounded-xl font-bold transition">Sim, Excluir</button>
             </div>
           </div>
@@ -1169,29 +1296,29 @@ function Workspace({ project, onUpdateProject, onSaveNewProject, onDeleteProject
 
       {showHistoryModal && (
         <div className="fixed inset-0 bg-slate-900/60 z-[100] flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl p-6 max-w-md w-full shadow-2xl max-h-[80vh] flex flex-col">
+          <div className="bg-white dark:bg-slate-800 rounded-3xl p-6 max-w-md w-full shadow-2xl max-h-[80vh] flex flex-col border border-slate-200 dark:border-slate-700">
             <div className="flex justify-between items-center mb-6">
-              <h3 className="text-xl font-bold text-slate-800 flex items-center gap-2"><History className="text-emerald-600"/> Histórico de Peças</h3>
-              <button onClick={() => setShowHistoryModal(false)} className="p-2 text-slate-400 hover:bg-slate-100 rounded-full"><X size={20}/></button>
+              <h3 className="text-xl font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2"><History className="text-emerald-600 dark:text-emerald-400"/> Histórico de Peças</h3>
+              <button onClick={() => setShowHistoryModal(false)} className="p-2 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full"><X size={20}/></button>
             </div>
             
             <div className="overflow-y-auto pr-2 flex-1 space-y-3">
               {project.history.map((entry, i) => (
-                <div key={i} className="bg-slate-50 border border-slate-200 p-4 rounded-xl flex flex-col gap-3">
-                  <div className="flex justify-between items-center border-b border-slate-200 pb-2">
-                    <span className="font-bold text-slate-700">Feita em: {formatDate(entry.date)}</span>
-                    <span className="bg-emerald-100 text-emerald-800 text-xs font-bold px-2 py-1 rounded flex items-center gap-1"><Clock size={12}/> {formatTime(entry.timeSpent)}</span>
+                <div key={i} className="bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 p-4 rounded-xl flex flex-col gap-3">
+                  <div className="flex justify-between items-center border-b border-slate-200 dark:border-slate-700 pb-2">
+                    <span className="font-bold text-slate-700 dark:text-slate-300">Feita em: {formatDate(entry.date)}</span>
+                    <span className="bg-emerald-100 dark:bg-emerald-900/30 text-emerald-800 dark:text-emerald-400 text-xs font-bold px-2 py-1 rounded flex items-center gap-1"><Clock size={12}/> {formatTime(entry.timeSpent)}</span>
                   </div>
                   <div className="flex justify-between items-center">
                     <span className={`text-xs font-bold px-2 py-1 rounded ${
-                      entry.difficulty === 'Fácil' ? 'bg-green-100 text-green-700' :
-                      entry.difficulty === 'Médio' ? 'bg-blue-100 text-blue-700' :
-                      'bg-purple-100 text-purple-700'
+                      entry.difficulty === 'Fácil' ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400' :
+                      entry.difficulty === 'Médio' ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400' :
+                      'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400'
                     }`}>
                       Dificuldade: {entry.difficulty}
                     </span>
                     <div className="flex items-center gap-1">
-                      {[1,2,3,4,5].map(star => <Star key={star} size={14} fill={star <= entry.rating ? "#F59E0B" : "none"} className={star <= entry.rating ? "text-amber-500" : "text-slate-300"} />)}
+                      {[1,2,3,4,5].map(star => <Star key={star} size={14} fill={star <= entry.rating ? "#F59E0B" : "none"} className={star <= entry.rating ? "text-amber-500" : "text-slate-300 dark:text-slate-600"} />)}
                     </div>
                   </div>
                 </div>
@@ -1211,12 +1338,12 @@ function CompletionModal({ timeSpent, isTemp, onClose, onPromptSave, onSave }) {
   if (isTemp) {
     return (
       <div className="fixed inset-0 bg-slate-900/60 z-[100] flex items-center justify-center p-4">
-        <div className="bg-white rounded-3xl p-8 max-w-sm w-full shadow-2xl animate-in zoom-in-95 text-center">
+        <div className="bg-white dark:bg-slate-800 rounded-3xl p-8 max-w-sm w-full shadow-2xl animate-in zoom-in-95 text-center border border-slate-200 dark:border-slate-700">
           <AlertCircle size={48} className="mx-auto text-amber-500 mb-4"/>
-          <h3 className="text-2xl font-bold text-slate-800 mb-2">Projeto Não Salvo!</h3>
-          <p className="text-slate-600 mb-6">Para concluir a peça e salvar o tempo no histórico, você precisa primeiro salvar essa receita na sua Biblioteca.</p>
+          <h3 className="text-2xl font-bold text-slate-800 dark:text-slate-100 mb-2">Projeto Não Salvo!</h3>
+          <p className="text-slate-600 dark:text-slate-400 mb-6">Para concluir a peça e salvar o tempo no histórico, você precisa primeiro salvar essa receita na sua Biblioteca.</p>
           <div className="flex gap-3">
-            <button onClick={onClose} className="flex-1 py-3 bg-slate-100 text-slate-600 font-bold rounded-xl hover:bg-slate-200">Cancelar</button>
+            <button onClick={onClose} className="flex-1 py-3 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-200 font-bold rounded-xl hover:bg-slate-200 dark:hover:bg-slate-600">Cancelar</button>
             <button onClick={onPromptSave} className="flex-1 py-3 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700">Salvar Agora</button>
           </div>
         </div>
@@ -1226,26 +1353,26 @@ function CompletionModal({ timeSpent, isTemp, onClose, onPromptSave, onSave }) {
 
   return (
     <div className="fixed inset-0 bg-slate-900/60 z-[100] flex items-center justify-center p-4">
-      <div className="bg-white rounded-3xl p-8 max-w-sm w-full shadow-2xl animate-in zoom-in-95">
-        <div className="w-16 h-16 bg-amber-100 text-amber-500 rounded-full flex items-center justify-center mx-auto mb-4 shadow-inner">
+      <div className="bg-white dark:bg-slate-800 rounded-3xl p-8 max-w-sm w-full shadow-2xl animate-in zoom-in-95 border border-slate-200 dark:border-slate-700">
+        <div className="w-16 h-16 bg-amber-100 dark:bg-amber-900/30 text-amber-500 rounded-full flex items-center justify-center mx-auto mb-4 shadow-inner">
           <Award size={32} />
         </div>
-        <h3 className="text-2xl font-bold text-center text-slate-800 mb-1">Parabéns!</h3>
-        <p className="text-slate-500 text-center mb-6">Você concluiu a peça.</p>
+        <h3 className="text-2xl font-bold text-center text-slate-800 dark:text-slate-100 mb-1">Parabéns!</h3>
+        <p className="text-slate-500 dark:text-slate-400 text-center mb-6">Você concluiu a peça.</p>
         
-        <div className="bg-slate-50 border border-slate-200 p-4 rounded-xl flex items-center justify-between mb-6">
-          <span className="text-sm font-bold text-slate-600">Tempo de Confecção:</span>
-          <span className="text-lg font-black text-emerald-600">{formatTime(timeSpent)}</span>
+        <div className="bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 p-4 rounded-xl flex items-center justify-between mb-6">
+          <span className="text-sm font-bold text-slate-600 dark:text-slate-300">Tempo de Confecção:</span>
+          <span className="text-lg font-black text-emerald-600 dark:text-emerald-400">{formatTime(timeSpent)}</span>
         </div>
 
         <div className="mb-6">
-          <label className="block text-sm font-bold text-slate-700 mb-3 text-center">Nível de Dificuldade</label>
-          <div className="flex gap-2 bg-slate-100 p-1 rounded-xl">
+          <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-3 text-center">Nível de Dificuldade</label>
+          <div className="flex gap-2 bg-slate-100 dark:bg-slate-700 p-1 rounded-xl">
             {['Fácil', 'Médio', 'Difícil'].map(lvl => (
               <button 
                 key={lvl}
                 onClick={() => setDifficulty(lvl)}
-                className={`flex-1 py-2 rounded-lg font-bold text-sm transition shadow-sm ${difficulty === lvl ? 'bg-white text-emerald-600' : 'text-slate-500 hover:text-slate-700'}`}
+                className={`flex-1 py-2 rounded-lg font-bold text-sm transition shadow-sm ${difficulty === lvl ? 'bg-white dark:bg-slate-800 text-emerald-600 dark:text-emerald-400' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'}`}
               >
                 {lvl}
               </button>
@@ -1254,7 +1381,7 @@ function CompletionModal({ timeSpent, isTemp, onClose, onPromptSave, onSave }) {
         </div>
 
         <div className="mb-8">
-          <label className="block text-sm font-bold text-slate-700 mb-3 text-center">Sua Avaliação</label>
+          <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-3 text-center">Sua Avaliação</label>
           <div className="flex justify-center gap-2">
             {[1, 2, 3, 4, 5].map((star) => (
               <button 
@@ -1262,18 +1389,18 @@ function CompletionModal({ timeSpent, isTemp, onClose, onPromptSave, onSave }) {
                 onClick={() => setRating(star)}
                 className="hover:scale-110 transition-transform focus:outline-none"
               >
-                <Star size={36} fill={star <= rating ? "#F59E0B" : "transparent"} strokeWidth={1.5} className={star <= rating ? "text-amber-500" : "text-slate-300"} />
+                <Star size={36} fill={star <= rating ? "#F59E0B" : "transparent"} strokeWidth={1.5} className={star <= rating ? "text-amber-500" : "text-slate-300 dark:text-slate-600"} />
               </button>
             ))}
           </div>
         </div>
 
         <div className="flex gap-3">
-          <button onClick={onClose} className="flex-1 py-3 bg-slate-100 text-slate-600 font-bold rounded-xl hover:bg-slate-200 transition">Voltar</button>
+          <button onClick={onClose} className="flex-1 py-3 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-200 font-bold rounded-xl hover:bg-slate-200 dark:hover:bg-slate-600 transition">Voltar</button>
           <button 
             disabled={rating === 0}
             onClick={() => onSave(difficulty, rating)} 
-            className="flex-1 py-3 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700 transition disabled:opacity-50 disabled:bg-slate-300"
+            className="flex-1 py-3 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700 transition disabled:opacity-50 disabled:bg-slate-600 disabled:text-slate-400"
           >
             Registrar Histórico
           </button>
@@ -1281,4 +1408,4 @@ function CompletionModal({ timeSpent, isTemp, onClose, onPromptSave, onSave }) {
       </div>
     </div>
   );
-}
+}s
